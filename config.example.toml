@@ -1,0 +1,43 @@
+[ldap]
+# LDAPv3/TLS is ALWAYS used. Other setups are not supported.
+server_host = "ldaps.exmple.com"
+server_port = 636
+# Bind to the Server as this DN ...
+bind_dn = "TODO"
+# ... and this password
+bind_password = "NOT_THE_PASSWORD"
+# accept certs signed by this CA
+# OPTIONAL, DEFAULT: trust only 
+# TODO: i do not know how to pass this to ldap3
+trust_ca = ""
+
+# LDAP Location to look for users at
+user_base_dn = "cn=users,dc=exmple,dc=com"
+# NOTE: Users are identified by their uid. The users dn is assumed to be "uid=<user-name>,<user_location>"
+
+# available users are results of this filter applied to "<user_location>"
+user_filter = "memberOf=cn=projekttagebuch,dc=example,dc=com"
+
+# LDAP filter to find out whether a user has write access.
+# {username} will be replaced with the users name
+# Will see if "&(uid=<user-name>)(&(<write_access_filter>)(<user_filter>))" at base "<user_location>" returns exactly 1 result
+write_access_filter = "memberOf=cn=projekttagebuch_admins,dc=example,dc=com"
+
+[db]
+host = "postgresql.example.com"
+port = 5432
+database = "projekttagebuch"
+# user needs admin permissions for the database
+user = "projekttagebuch"
+password = "NOT_THE_PASSWORD"
+
+# TLS used by the web-server
+# HTTP w/o TLS is not supported, all communications are always HTTPS
+[web]
+bind_address = "127.0.0.1"
+# this port will ONLY 302 into the TLS port
+bind_port = 8080
+bind_port_tls = 8443
+cert_file = "/etc/ssl/projekttagebuch/projekttagebuch.cert"
+key_file = "/etc/ssl/projekttagebuch/projekttagebuch.key"
+
