@@ -52,7 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             panic!("Unable to start web server. Unrecoverable");
         };
     });
-
+    let res = tokio::join!(web_handle);
+    res.0?;
 
     Ok(())
 }

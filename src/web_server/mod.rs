@@ -99,7 +99,7 @@ impl Webserver {
             .fallback(fallback);
 
         // run it
-        let addr = std::net::SocketAddr::from_str(&format!("{}:{}", &config.web_config.bind_address, &config.web_config.bind_port))
+        let addr = std::net::SocketAddr::from_str(&format!("{}:{}", &config.web_config.bind_address, &config.web_config.bind_port_tls))
             .expect("Should be able to parse socket addr");
         event!(Level::INFO, "Webserver (HTTPS) listening on {}", addr);
 

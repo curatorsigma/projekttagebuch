@@ -1,7 +1,7 @@
 use axum_login::{AuthUser, AuthnBackend, UserId};
-use ldap3::{Ldap, LdapConnAsync, Scope, SearchEntry};
+use ldap3::{Ldap, LdapConnAsync, LdapError, Scope, SearchEntry};
 use serde::Deserialize;
-use tracing::{warn, Level};
+use tracing::{debug, info, warn, Level};
 
 /// escape parameter such that it may be used in a search filter
 /// uses RFC2254 Section 4 and RFC4514 Section 2.4
@@ -44,14 +44,11 @@ pub(crate) struct User {
     ldap_dn: String,
     /// the uid in LDAP
     pub(crate) username: String,
-    /// The password hash as stored in LDAP
-    password_hash: String,
 }
 impl std::fmt::Debug for User {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("User")
             .field("username", &self.username)
-            .field("password_hash", &"[redacted]")
             .finish()
     }
 }
@@ -62,7 +59,7 @@ impl AuthUser for User {
         self.username.clone()
     }
     fn session_auth_hash(&self) -> &[u8] {
-        self.password_hash.as_bytes()
+        "constant".as_bytes()
     }
 }
 
@@ -122,7 +119,7 @@ impl LDAPBackend {
     async fn new_bound_connection(&self) -> Result<Ldap, LDAPError> {
         let (conn, mut ldap) = LdapConnAsync::new(&self.bind_string)
             .await
-            .map_err(|_| LDAPError::CannotConnect)?;
+            .map_err(|e| LDAPError::CannotConnect(e))?;
         // spawn a task that drives the connection until ldap is dropped
         ldap3::drive!(conn);
         // LDAP-bind the handle
@@ -138,23 +135,24 @@ impl LDAPBackend {
     /// connection on success
     async fn get_user_no_unbind(&self, id: &str) -> Result<(Ldap, Option<User>), LDAPError> {
         let mut our_handle = self.new_bound_connection().await?;
+
+        let complete_filter = format!("(&({})(uid={}))", &self.user_filter, &escape_ldap_search_filter_parameter(id));
         let (rs, _res) = our_handle
             .search(
                 &self.base_dn,
                 Scope::OneLevel,
-                &self
-                    .user_filter
-                    .replace("{username}", &escape_ldap_search_filter_parameter(id)),
-                vec!["uid", "userPassword"],
+                &complete_filter,
+                vec!["uid"],
             )
             .await
-            .map_err(|_| LDAPError::CannotSearch)?
+            .map_err(LDAPError::CannotSearch)?
             .success()
             .map_err(LDAPError::UserError)?;
         if rs.is_empty() {
             return Ok((our_handle, None));
         }
         if rs.len() != 1 {
+            info!("{:?}", SearchEntry::construct(rs.into_iter().next().unwrap()).attrs);
             return Err(LDAPError::MultipleUsersWithSameUid(id.to_string()));
         }
         let user_obj = SearchEntry::construct(
@@ -172,22 +170,6 @@ impl LDAPBackend {
         } else {
             uids.iter()
                 .next()
-                .expect("In else if if len() != 1")
-                .to_string()
-        };
-
-        let password_hashes = user_obj
-            .attrs
-            .get("userPassword")
-            .ok_or(LDAPError::AttributeMissing("userPassword".to_string()))?;
-        let password_hash = if uids.len() != 1 {
-            return Err(LDAPError::NotExactlyOneOfAttribute(
-                "userPassword".to_string(),
-            ));
-        } else {
-            password_hashes
-                .iter()
-                .next()
                 .expect("In else of if len() != 1")
                 .to_string()
         };
@@ -195,7 +177,6 @@ impl LDAPBackend {
         let user = User {
             ldap_dn: user_obj.dn,
             username: uid,
-            password_hash,
         };
         Ok((our_handle, Some(user)))
     }
@@ -246,10 +227,10 @@ impl AuthnBackend for LDAPBackend {
 }
 #[derive(Debug)]
 pub enum LDAPError {
-    CannotConnect,
+    CannotConnect(LdapError),
     CannotUnbind,
     CannotBind,
-    CannotSearch,
+    CannotSearch(ldap3::LdapError),
     UserError(ldap3::LdapError),
     MultipleUsersWithSameUid(String),
     AttributeMissing(String),
@@ -258,8 +239,8 @@ pub enum LDAPError {
 impl std::fmt::Display for LDAPError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::CannotConnect => {
-                write!(f, "Cannot connect to the LDAPS host")
+            Self::CannotConnect(x) => {
+                write!(f, "Cannot connect to the LDAPS host: {x}")
             }
             Self::CannotUnbind => {
                 write!(f, "Cannot unbind from LDAP")
@@ -267,8 +248,8 @@ impl std::fmt::Display for LDAPError {
             Self::CannotBind => {
                 write!(f, "Cannot bind to LDAP")
             }
-            Self::CannotSearch => {
-                write!(f, "Cannot search in the LDAP directory")
+            Self::CannotSearch(x) => {
+                write!(f, "Cannot search in the LDAP directory: {x}")
             }
             Self::UserError(x) => {
                 write!(f, "Error while executing command: {x}")
