@@ -1,3 +1,8 @@
+# available levels: TRACE, DEBUG, INFO, WARN, ERROR
+log_level = "TRACE"
+# file name is projekttagebuch.log
+log_location = "/var/log/projekttagebuch/"
+
 [ldap]
 # LDAPv3/TLS is ALWAYS used. Other setups are not supported.
 server_host = "ldaps.exmple.com"
@@ -6,10 +11,6 @@ server_port = 636
 bind_dn = "TODO"
 # ... and this password
 bind_password = "NOT_THE_PASSWORD"
-# accept certs signed by this CA
-# OPTIONAL, DEFAULT: trust only 
-# TODO: i do not know how to pass this to ldap3
-trust_ca = ""
 
 # LDAP Location to look for users at
 user_base_dn = "cn=users,dc=exmple,dc=com"

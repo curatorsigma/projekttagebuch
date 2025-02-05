@@ -12,7 +12,7 @@ use crate::ldap::{LDAPBackend, LDAPError};
 #[derive(Debug)]
 pub(crate) enum ConfigError {
     PoolCreationError(sqlx::Error),
-    TlsConfigError(std::io::Error),
+    TlsCertKeyError(std::io::Error),
     ReadConfigFileError(std::io::Error),
     ParseConfigFileError(toml::de::Error),
     LdapConnectionError(LDAPError),
@@ -23,7 +23,7 @@ impl core::fmt::Display for ConfigError {
             Self::PoolCreationError(x) => {
                 write!(f, "Error creating PSQL Pool: {x}")
             },
-            Self::TlsConfigError(x) => {
+            Self::TlsCertKeyError(x) => {
                 write!(f, "Error creating TLS config: {x}")
             }
             Self::ReadConfigFileError(x) => {
@@ -45,6 +45,8 @@ impl std::error::Error for ConfigError {}
 /// Config as present in file. This object will be used to create a Config object.
 #[derive(Debug, Deserialize)]
 struct ConfigData {
+    log_level: String,
+    log_location: Option<String>,
     ldap: LdapConfigData,
     db: DbConfigData,
     web: WebConfigData,
@@ -56,7 +58,6 @@ struct LdapConfigData {
     server_port: u16,
     bind_dn: String,
     bind_password: String,
-    trust_ca: String,
     user_base_dn: String,
     user_filter: String,
     write_access_filter: String,
@@ -68,7 +69,6 @@ impl core::fmt::Debug for LdapConfigData {
             .field("server_port", &self.server_port)
             .field("bind_dn", &self.bind_dn)
             .field("bind_password", &"[redacted]")
-            .field("trust_ca", &self.trust_ca)
             .field("user_base_dn", &self.user_base_dn)
             .field("user_filter", &self.user_filter)
             .field("write_access_filter", &self.write_access_filter)
@@ -106,15 +106,6 @@ struct WebConfigData {
 }
 impl WebConfigData {
     async fn try_into_web_config(self) -> Result<WebConfig, ConfigError> {
-        // webserver settings
-        let bind_string = format!(
-            "{}:{}",
-            self.bind_address, self.bind_port
-        );
-        let bind_string_tls = format!(
-            "{}:{}",
-            self.bind_address, self.bind_port_tls
-        );
         let rustls_config =
             match RustlsConfig::from_pem_file(self.cert_file, self.key_file)
                 .await
@@ -125,10 +116,10 @@ impl WebConfigData {
                         Level::ERROR,
                         "There was a problem reading the TLS cert/key: {e}"
                     );
-                    return Err(ConfigError::TlsConfigError(e));
+                    return Err(ConfigError::TlsCertKeyError(e));
                 }
             };
-        Ok(WebConfig{ bind_string, bind_string_tls, rustls_config, })
+        Ok(WebConfig{ bind_address: self.bind_address, bind_port: self.bind_port, bind_port_tls: self.bind_port_tls, rustls_config, })
     }
 }
 
@@ -160,10 +151,11 @@ impl DbConfig {
 
 
 #[derive(Debug)]
-struct WebConfig {
-    bind_string: String,
-    bind_string_tls: String,
-    rustls_config: RustlsConfig,
+pub(crate) struct WebConfig {
+    pub(crate) bind_address: String,
+    pub(crate) bind_port: u16,
+    pub(crate) bind_port_tls: u16,
+    pub(crate) rustls_config: RustlsConfig,
 }
 
 
@@ -190,16 +182,18 @@ async fn pg_pool_from_db_config_data(value: DbConfigData) -> Result<Pool<Postgre
 }
 
 pub(crate) struct Config {
-    ldap_backend: LDAPBackend,
-    pg_pool: Pool<Postgres>,
-    web_config: WebConfig,
+    pub(crate) log_level: String,
+    pub(crate) log_location: String,
+    pub(crate) ldap_backend: LDAPBackend,
+    pub(crate) pg_pool: Pool<Postgres>,
+    pub(crate) web_config: WebConfig,
 }
 impl Config {
     pub async fn create() -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string("/etc/projekttagebuch/config.toml")
-            .map_err(|x| ConfigError::ReadConfigFileError(x))?;
+            .map_err(ConfigError::ReadConfigFileError)?;
         let config_data: ConfigData = toml::from_str(&content)
-            .map_err(|x| ConfigError::ParseConfigFileError(x))?;
+            .map_err(ConfigError::ParseConfigFileError)?;
 
         // LDAP
         let ldap_backend = match crate::ldap::LDAPBackend::new(
@@ -228,6 +222,6 @@ impl Config {
 
         // Web
         let web_config = config_data.web.try_into_web_config().await?;
-        Ok(Self { ldap_backend, pg_pool, web_config, })
+        Ok(Self { log_level: config_data.log_level, log_location: config_data.log_location.unwrap_or("/var/log/projekttagebuch".to_owned()), ldap_backend, pg_pool, web_config, })
     }
 }
