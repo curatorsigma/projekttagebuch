@@ -2,10 +2,18 @@ use std::{str::FromStr, sync::Arc};
 
 use config::Config;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{prelude::*, filter, fmt::{self, format::FmtSpan}, EnvFilter};
+use tracing_subscriber::{
+    filter,
+    fmt::{self, format::FmtSpan},
+    prelude::*,
+    EnvFilter,
+};
 
 mod config;
+mod db;
 mod ldap;
+mod sync;
+mod types;
 mod web_server;
 
 #[tokio::main]

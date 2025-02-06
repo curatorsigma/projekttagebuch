@@ -99,8 +99,11 @@ impl Webserver {
             .fallback(fallback);
 
         // run it
-        let addr = std::net::SocketAddr::from_str(&format!("{}:{}", &config.web_config.bind_address, &config.web_config.bind_port_tls))
-            .expect("Should be able to parse socket addr");
+        let addr = std::net::SocketAddr::from_str(&format!(
+            "{}:{}",
+            &config.web_config.bind_address, &config.web_config.bind_port_tls
+        ))
+        .expect("Should be able to parse socket addr");
         event!(Level::INFO, "Webserver (HTTPS) listening on {}", addr);
 
         // run the redirect service HTTPS -> HTTP on its own port
@@ -149,7 +152,12 @@ async fn redirect_http_to_https(config: Arc<Config>) {
         }
     };
 
-    let listener = match tokio::net::TcpListener::bind(&format!("{}:{}", config.web_config.bind_address, config.web_config.bind_port)).await {
+    let listener = match tokio::net::TcpListener::bind(&format!(
+        "{}:{}",
+        config.web_config.bind_address, config.web_config.bind_port
+    ))
+    .await
+    {
         Ok(x) => x,
         Err(e) => {
             tracing::error!(
@@ -225,4 +233,3 @@ async fn fallback() -> impl IntoResponse {
         Html(include_str!("../../templates/404.html")),
     )
 }
-

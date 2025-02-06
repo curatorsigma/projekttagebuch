@@ -7,8 +7,6 @@ use tracing::{event, Level};
 
 use crate::ldap::{LDAPBackend, LDAPError};
 
-
-
 #[derive(Debug)]
 pub(crate) enum ConfigError {
     PoolCreationError(sqlx::Error),
@@ -22,7 +20,7 @@ impl core::fmt::Display for ConfigError {
         match self {
             Self::PoolCreationError(x) => {
                 write!(f, "Error creating PSQL Pool: {x}")
-            },
+            }
             Self::TlsCertKeyError(x) => {
                 write!(f, "Error creating TLS config: {x}")
             }
@@ -40,13 +38,13 @@ impl core::fmt::Display for ConfigError {
 }
 impl std::error::Error for ConfigError {}
 
-
-
 /// Config as present in file. This object will be used to create a Config object.
 #[derive(Debug, Deserialize)]
 struct ConfigData {
     log_level: String,
     log_location: Option<String>,
+    user_resync_interval: Option<u32>,
+    room_resync_interval: Option<u32>,
     ldap: LdapConfigData,
     db: DbConfigData,
     web: WebConfigData,
@@ -106,23 +104,24 @@ struct WebConfigData {
 }
 impl WebConfigData {
     async fn try_into_web_config(self) -> Result<WebConfig, ConfigError> {
-        let rustls_config =
-            match RustlsConfig::from_pem_file(self.cert_file, self.key_file)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => {
-                    event!(
-                        Level::ERROR,
-                        "There was a problem reading the TLS cert/key: {e}"
-                    );
-                    return Err(ConfigError::TlsCertKeyError(e));
-                }
-            };
-        Ok(WebConfig{ bind_address: self.bind_address, bind_port: self.bind_port, bind_port_tls: self.bind_port_tls, rustls_config, })
+        let rustls_config = match RustlsConfig::from_pem_file(self.cert_file, self.key_file).await {
+            Ok(x) => x,
+            Err(e) => {
+                event!(
+                    Level::ERROR,
+                    "There was a problem reading the TLS cert/key: {e}"
+                );
+                return Err(ConfigError::TlsCertKeyError(e));
+            }
+        };
+        Ok(WebConfig {
+            bind_address: self.bind_address,
+            bind_port: self.bind_port,
+            bind_port_tls: self.bind_port_tls,
+            rustls_config,
+        })
     }
 }
-
 
 struct DbConfig {
     pool: Pool<Postgres>,
@@ -132,11 +131,7 @@ impl DbConfig {
         // postgres settings
         let url = format!(
             "postgres://{}:{}@{}:{}/{}",
-            value.user,
-            value.password,
-            value.host,
-            value.port,
-            value.database
+            value.user, value.password, value.host, value.port, value.database
         );
         let pool = match sqlx::postgres::PgPool::connect(&url).await {
             Ok(x) => x,
@@ -145,10 +140,9 @@ impl DbConfig {
                 return Err(ConfigError::PoolCreationError(e));
             }
         };
-        Ok(Self { pool, })
+        Ok(Self { pool })
     }
 }
-
 
 #[derive(Debug)]
 pub(crate) struct WebConfig {
@@ -158,22 +152,15 @@ pub(crate) struct WebConfig {
     pub(crate) rustls_config: RustlsConfig,
 }
 
-
 /// Create a pg_pool from the [`DbConfigData`]
 async fn pg_pool_from_db_config_data(value: DbConfigData) -> Result<Pool<Postgres>, ConfigError> {
     // postgres settings
     let url = format!(
         "postgres://{}:{}@{}:{}/{}",
-        value.user,
-        value.password,
-        value.host,
-        value.port,
-        value.database
+        value.user, value.password, value.host, value.port, value.database
     );
     match sqlx::postgres::PgPool::connect(&url).await {
-        Ok(pool) => {
-            Ok(pool)
-        }
+        Ok(pool) => Ok(pool),
         Err(e) => {
             event!(Level::ERROR, "Could not connect to postgres: {e}");
             Err(ConfigError::PoolCreationError(e))
@@ -184,6 +171,8 @@ async fn pg_pool_from_db_config_data(value: DbConfigData) -> Result<Pool<Postgre
 pub(crate) struct Config {
     pub(crate) log_level: String,
     pub(crate) log_location: String,
+    pub(crate) user_resync_interval: u32,
+    pub(crate) room_resync_interval: u32,
     pub(crate) ldap_backend: LDAPBackend,
     pub(crate) pg_pool: Pool<Postgres>,
     pub(crate) web_config: WebConfig,
@@ -192,8 +181,8 @@ impl Config {
     pub async fn create() -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string("/etc/projekttagebuch/config.toml")
             .map_err(ConfigError::ReadConfigFileError)?;
-        let config_data: ConfigData = toml::from_str(&content)
-            .map_err(ConfigError::ParseConfigFileError)?;
+        let config_data: ConfigData =
+            toml::from_str(&content).map_err(ConfigError::ParseConfigFileError)?;
 
         // LDAP
         let ldap_backend = match crate::ldap::LDAPBackend::new(
@@ -222,6 +211,16 @@ impl Config {
 
         // Web
         let web_config = config_data.web.try_into_web_config().await?;
-        Ok(Self { log_level: config_data.log_level, log_location: config_data.log_location.unwrap_or("/var/log/projekttagebuch".to_owned()), ldap_backend, pg_pool, web_config, })
+        Ok(Self {
+            log_level: config_data.log_level,
+            log_location: config_data
+                .log_location
+                .unwrap_or("/var/log/projekttagebuch".to_owned()),
+            user_resync_interval: config_data.user_resync_interval.unwrap_or(10),
+            room_resync_interval: config_data.room_resync_interval.unwrap_or(10),
+            ldap_backend,
+            pg_pool,
+            web_config,
+        })
     }
 }

@@ -7,8 +7,8 @@
 - CRUD projekt
 - Add user to projekt
 - remove user from projekt
-- get projekt protokoll
 - get users from ldap into db
+- get projekt protokoll
 
 ## Web programmieren
 ### Frontend - Views

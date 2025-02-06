@@ -3,6 +3,16 @@ log_level = "TRACE"
 # file name is projekttagebuch.log
 log_location = "/var/log/projekttagebuch/"
 
+# users are resynced from LDAP after this interval (in min)
+# NOTE: global admin privileges are not stored in the DB and queried directly from LDAP whenever they are relevant
+# OPTIONAL, default 10
+user_resync_interval = 10
+# Matrix-rooms are resynced from the DB after this interval (in min)
+# NOTE: When users are added/removed from a Project, they are immediately added/removed from the matrix room
+# This resync means that users who manually joined/left the matrix room are automatically kicked/readded at this interval
+# OPTIONAL, default 10
+room_resync_interval = 10
+
 [ldap]
 # LDAPv3/TLS is ALWAYS used. Other setups are not supported.
 server_host = "ldaps.exmple.com"

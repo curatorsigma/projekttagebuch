@@ -136,7 +136,11 @@ impl LDAPBackend {
     async fn get_user_no_unbind(&self, id: &str) -> Result<(Ldap, Option<User>), LDAPError> {
         let mut our_handle = self.new_bound_connection().await?;
 
-        let complete_filter = format!("(&({})(uid={}))", &self.user_filter, &escape_ldap_search_filter_parameter(id));
+        let complete_filter = format!(
+            "(&({})(uid={}))",
+            &self.user_filter,
+            &escape_ldap_search_filter_parameter(id)
+        );
         let (rs, _res) = our_handle
             .search(
                 &self.base_dn,
@@ -152,7 +156,10 @@ impl LDAPBackend {
             return Ok((our_handle, None));
         }
         if rs.len() != 1 {
-            info!("{:?}", SearchEntry::construct(rs.into_iter().next().unwrap()).attrs);
+            info!(
+                "{:?}",
+                SearchEntry::construct(rs.into_iter().next().unwrap()).attrs
+            );
             return Err(LDAPError::MultipleUsersWithSameUid(id.to_string()));
         }
         let user_obj = SearchEntry::construct(
@@ -284,7 +291,7 @@ mod ldap_test {
     #[tokio::test]
     #[ignore]
     async fn ldap_bind() {
-        let backend = Config::create().await.unwrap().ldap_config;
+        let backend = Config::create().await.unwrap().ldap_backend;
         let mut handle = backend.new_bound_connection().await.unwrap();
         handle.unbind().await.unwrap();
     }
@@ -292,7 +299,8 @@ mod ldap_test {
     #[tokio::test]
     #[ignore]
     async fn ldap_get_user() {
-        let backend = Config::create().await.unwrap().ldap_config;
+        let backend = Config::create().await.unwrap().ldap_backend
+            ;
         let res = backend.get_user(&"testuser".to_string()).await.unwrap();
         res.unwrap();
     }
@@ -300,7 +308,7 @@ mod ldap_test {
     #[tokio::test]
     #[ignore]
     async fn ldap_get_user_does_not_exist() {
-        let backend = Config::create().await.unwrap().ldap_config;
+        let backend = Config::create().await.unwrap().ldap_backend;
         let res = backend
             .get_user(&"DOES NOT EXIST EVEN REMOTELY".to_string())
             .await
@@ -311,7 +319,7 @@ mod ldap_test {
     #[tokio::test]
     #[ignore]
     async fn ldap_authenticate_user() {
-        let backend = Config::create().await.unwrap().ldap_config;
+        let backend = Config::create().await.unwrap().ldap_backend;
         dotenv().ok();
         let res = backend
             .authenticate(UserCredentials {
@@ -326,7 +334,7 @@ mod ldap_test {
     #[tokio::test]
     #[ignore]
     async fn ldap_authenticate_user_password_wrong() {
-        let backend = Config::create().await.unwrap().ldap_config;
+        let backend = Config::create().await.unwrap().ldap_backend;
         let res = backend
             .authenticate(UserCredentials {
                 username: "testuser".to_string(),
@@ -340,7 +348,7 @@ mod ldap_test {
     #[tokio::test]
     #[ignore]
     async fn ldap_auth_user_twice() {
-        let backend = Config::create().await.unwrap().ldap_config;
+        let backend = Config::create().await.unwrap().ldap_backend;
         let res = backend
             .authenticate(UserCredentials {
                 username: "testuser".to_string(),
@@ -359,4 +367,3 @@ mod ldap_test {
         assert!(res.is_none());
     }
 }
-

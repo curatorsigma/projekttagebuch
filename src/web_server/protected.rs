@@ -14,14 +14,11 @@ fn error_display(s: &str) -> String {
 }
 
 pub(crate) fn create_protected_router() -> Router {
-    Router::new()
-        .route("/", get(self::get::root))
+    Router::new().route("/", get(self::get::root))
 }
 
 pub(super) mod get {
-    use crate::{
-        web_server::{login::AuthSession, InternalServerErrorTemplate},
-    };
+    use crate::web_server::{login::AuthSession, InternalServerErrorTemplate};
 
     use super::*;
 
@@ -32,7 +29,6 @@ pub(super) mod get {
     use uuid::Uuid;
 
     use crate::config::Config;
-
 
     pub(super) async fn root(
         auth_session: AuthSession,
@@ -52,4 +48,3 @@ pub(super) mod get {
         "hi".into_response()
     }
 }
-
