@@ -18,7 +18,10 @@ pub(crate) fn create_protected_router() -> Router {
 }
 
 pub(super) mod get {
-    use crate::web_server::{login::AuthSession, InternalServerErrorTemplate};
+    use crate::{
+        types::{HasID, Project, UserPermission},
+        web_server::{login::AuthSession, InternalServerErrorTemplate},
+    };
 
     use super::*;
 
@@ -29,6 +32,14 @@ pub(super) mod get {
     use uuid::Uuid;
 
     use crate::config::Config;
+
+    #[derive(Template)]
+    #[template(path = "landing/complete.html")]
+    struct LandingAsUser {
+        username: String,
+        projects: Vec<Project<HasID>>,
+        permission: UserPermission,
+    }
 
     pub(super) async fn root(
         auth_session: AuthSession,
@@ -45,6 +56,14 @@ pub(super) mod get {
             )
                 .into_response();
         };
-        "hi".into_response()
+
+        // get projects
+
+        LandingAsUser {
+            username: user.username,
+            projects: vec![],
+            permission: UserPermission::User,
+        }
+        .into_response()
     }
 }

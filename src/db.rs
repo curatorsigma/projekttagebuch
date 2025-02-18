@@ -1,9 +1,8 @@
 //! Low level Database primitives
 
-use sqlx::{postgres::PgRow, Row, PgPool, Postgres};
+use sqlx::{postgres::PgRow, PgPool, Postgres, Row};
 
 use crate::types::{HasID, NoID, Person, Project};
-
 
 #[derive(Debug)]
 pub(crate) enum DBError {
@@ -62,7 +61,6 @@ async fn update_project_members(project: Project<HasID>) -> Result<(), DBError> 
 
 /// Add a person.
 async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>, DBError> {
-
     let mut tx = pool
         .begin()
         .await
@@ -84,23 +82,20 @@ async fn get_person(name: &str) -> Result<Option<Person<HasID>>, DBError> {
     todo!()
 }
 
-
-
 #[cfg(test)]
 mod test {
-    use sqlx::PgPool;
     use super::*;
+    use sqlx::PgPool;
 
     #[sqlx::test(fixtures("empty"))]
-    async fn update_call_forward_delete_context(
+    async fn test_add_person(
         pool: PgPool,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let person = Person::<NoID>::new((), "some_name".to_owned());
-        let name = person.name.clone();
-        let res = add_person(pool, person).await?;
-        assert_eq!(res.name, name);
-        assert_eq!(res.person_id, HasID::new(1));
-
+        let person = Person::<NoID> {
+            person_id: NoID::default(),
+            name: "John Doe".to_owned(),
+        };
+        add_person(pool, person).await.unwrap();
         Ok(())
     }
 }

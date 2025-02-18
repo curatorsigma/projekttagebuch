@@ -95,7 +95,7 @@ impl std::fmt::Debug for LDAPBackend {
     }
 }
 impl LDAPBackend {
-    #[tracing::instrument(level=Level::DEBUG,skip_all,err)]
+    #[tracing::instrument(level=Level::TRACE,skip_all,err)]
     pub async fn new(
         hostname: &str,
         port: u16,
@@ -194,7 +194,7 @@ impl AuthnBackend for LDAPBackend {
     type User = User;
     type Credentials = UserCredentials;
     type Error = LDAPError;
-    #[tracing::instrument(level=Level::DEBUG,skip_all,err)]
+    #[tracing::instrument(level=Level::TRACE,skip_all,err)]
     async fn authenticate(&self, creds: UserCredentials) -> Result<Option<User>, LDAPError> {
         let (mut handle, user) = self.get_user_no_unbind(&creds.username).await?;
         let user = match user {
@@ -224,7 +224,7 @@ impl AuthnBackend for LDAPBackend {
         Ok(res)
     }
 
-    #[tracing::instrument(level=Level::DEBUG,skip_all,err)]
+    #[tracing::instrument(level=Level::TRACE,skip_all,err)]
     async fn get_user(&self, id: &UserId<Self>) -> Result<Option<User>, LDAPError> {
         let (mut handle, res) = self.get_user_no_unbind(id).await?;
         // unbind to cleanly exit the ldap session
@@ -299,8 +299,7 @@ mod ldap_test {
     #[tokio::test]
     #[ignore]
     async fn ldap_get_user() {
-        let backend = Config::create().await.unwrap().ldap_backend
-            ;
+        let backend = Config::create().await.unwrap().ldap_backend;
         let res = backend.get_user(&"testuser".to_string()).await.unwrap();
         res.unwrap();
     }

@@ -1,8 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
 use config::Config;
+use tracing::debug;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{
+    field::debug,
     filter,
     fmt::{self, format::FmtSpan},
     prelude::*,
@@ -24,31 +26,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Arc::new(Config::create().await?);
 
-    let file_appender = RollingFileAppender::builder()
-        .rotation(Rotation::DAILY)
-        .filename_prefix("projekttagebuch.log")
-        .build(&config.log_location)
-        .expect("Should be able to create file appender");
-    let (writer, _guard) = tracing_appender::non_blocking(file_appender);
-
     let my_crate_filter = EnvFilter::new("projekttagebuch");
 
     let level_filter = filter::LevelFilter::from_str(&config.log_level)?;
 
-    let subscriber = tracing_subscriber::registry()
-        .with(my_crate_filter)
-        .with(
-            tracing_subscriber::fmt::layer()
-                .compact()
-                .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
-                .with_line_number(true)
-                .with_filter(level_filter),
-        )
-        .with(fmt::Layer::default().with_writer(writer));
+    let subscriber = tracing_subscriber::registry().with(my_crate_filter).with(
+        tracing_subscriber::fmt::layer()
+            .compact()
+            .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+            .with_line_number(true)
+            .with_filter(level_filter),
+    );
     if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
         eprintln!("Error setting global tracing subscriber: {e}");
         Err(e)?;
     };
+    debug!("Successfully instantiated tracing.");
 
     sqlx::migrate!().run(&config.pg_pool).await?;
 

@@ -1,12 +1,15 @@
 //! Basic types used throughout the program.
 
+mod user_permission;
+pub(crate) use user_permission::UserPermission;
+
 mod person;
 pub(crate) use person::Person;
 
 mod project;
 pub(crate) use project::Project;
 
-trait DBID : core::fmt::Debug {}
+trait DBID: core::fmt::Debug {}
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub(crate) struct HasID {
@@ -32,3 +35,9 @@ impl From<()> for NoID {
         Self {}
     }
 }
+impl Default for NoID {
+    fn default() -> Self {
+        Self {  }
+    }
+}
+
