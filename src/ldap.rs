@@ -315,6 +315,16 @@ mod ldap_test {
         assert!(res.is_none());
     }
 
+    /// Tests need crypto provider installed. We do this here, which will apply to all tests
+    /// running
+    #[tokio::test]
+    #[ignore]
+    async fn ___install_crypto() {
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install rustls crypto provider");
+    }
+
     #[tokio::test]
     #[ignore]
     async fn ldap_authenticate_user() {
@@ -323,7 +333,7 @@ mod ldap_test {
         let res = backend
             .authenticate(UserCredentials {
                 username: "testuser".to_string(),
-                password: std::env::var("ASTERCONF_TESTUSER_PASSWORD").unwrap(),
+                password: std::env::var("PROJEKTTAGEBUCH_TESTUSER_PASSWORD").unwrap(),
             })
             .await
             .unwrap();

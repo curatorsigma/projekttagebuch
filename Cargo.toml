@@ -29,7 +29,7 @@ axum-extra = { version = "0.9.3", features = ["form"] }
 uuid = { version = "1.10.0", features = ["v4"] }
 # only so that we can install a default crypto provider.
 # used only transitively by some other dependencies
-rustls = { version = "0.23.13", default-features = false, features = ["ring"]}
+rustls = { version = "0.23.23", default-features = false, features = ["ring"]}
 async-trait = "0.1.85"
 toml = "0.8.19"
 
