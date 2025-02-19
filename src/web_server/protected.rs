@@ -1,11 +1,7 @@
 use std::sync::Arc;
 
-use askama::Template;
 /// The routes protected by a login
-use axum::{
-    routing::{get, post},
-    Extension, Router,
-};
+use axum::{routing::get, Extension, Router};
 
 fn error_display(s: &str) -> String {
     // we cannot control hx-swap separately for hx-target and hx-target-error
@@ -27,8 +23,8 @@ pub(super) mod get {
 
     use askama::Template;
     use askama_axum::IntoResponse;
-    use axum::{extract::Path, http::StatusCode};
-    use tracing::{warn, Level};
+    use axum::http::StatusCode;
+    use tracing::warn;
     use uuid::Uuid;
 
     use crate::config::Config;

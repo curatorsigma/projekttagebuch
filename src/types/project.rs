@@ -34,7 +34,10 @@ where
 }
 impl Project<HasID> {
     pub(crate) fn to_template(&self, permission: &UserPermission) -> ProjectTemplate {
-        ProjectTemplate { project: self, permission: *permission, }
+        ProjectTemplate {
+            project: self,
+            permission: *permission,
+        }
     }
 
     pub(crate) fn project_id(&self) -> i32 {

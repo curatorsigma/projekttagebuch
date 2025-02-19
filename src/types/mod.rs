@@ -37,7 +37,6 @@ impl From<()> for NoID {
 }
 impl Default for NoID {
     fn default() -> Self {
-        Self {  }
+        Self {}
     }
 }
-

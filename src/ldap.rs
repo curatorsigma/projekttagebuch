@@ -1,7 +1,7 @@
 use axum_login::{AuthUser, AuthnBackend, UserId};
 use ldap3::{Ldap, LdapConnAsync, LdapError, Scope, SearchEntry};
 use serde::Deserialize;
-use tracing::{debug, info, warn, Level};
+use tracing::{info, warn, Level};
 
 /// escape parameter such that it may be used in a search filter
 /// uses RFC2254 Section 4 and RFC4514 Section 2.4

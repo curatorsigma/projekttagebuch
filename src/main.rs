@@ -2,14 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use config::Config;
 use tracing::debug;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{
-    field::debug,
-    filter,
-    fmt::{self, format::FmtSpan},
-    prelude::*,
-    EnvFilter,
-};
+use tracing_subscriber::{filter, fmt::format::FmtSpan, prelude::*, EnvFilter};
 
 mod config;
 mod db;

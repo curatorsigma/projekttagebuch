@@ -1,6 +1,6 @@
 //! Low level Database primitives
 
-use sqlx::{postgres::PgRow, PgPool, Postgres, Row};
+use sqlx::{PgPool, Row};
 
 use crate::types::{HasID, NoID, Person, Project};
 
@@ -84,12 +84,12 @@ async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
                 project.add_member(person, row.isprojectadmin);
                 continue 'row;
             };
-        };
+        }
         // no existing project fit - create a new one
         let mut project = Project::new(row.projectid, row.projectname);
         project.add_member(person, row.isprojectadmin);
         result.push(project);
-    };
+    }
     Ok(result)
 }
 
@@ -100,11 +100,13 @@ async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<Project<Has
         .await
         .map_err(DBError::CannotStartTransaction)?;
 
-    let new_id = sqlx::query!("INSERT INTO Project (ProjectName) VALUES ($1) RETURNING ProjectID;",
-                  project.name)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(DBError::CannotInsertProject)?;
+    let new_id = sqlx::query!(
+        "INSERT INTO Project (ProjectName) VALUES ($1) RETURNING ProjectID;",
+        project.name
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(DBError::CannotInsertProject)?;
     let idd_project = project.set_id(new_id.projectid);
 
     for member in idd_project.members.iter() {
@@ -116,7 +118,7 @@ async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<Project<Has
             .execute(&mut *tx)
             .await
             .map_err(DBError::CannotInsertPPMap)?;
-    };
+    }
 
     tx.commit()
         .await
@@ -149,27 +151,25 @@ async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DB
                 project.add_member(person, row.isprojectadmin);
                 continue 'row;
             };
-        };
+        }
         // no existing project fit - create a new one
         let mut project = Project::new(row.projectid, row.projectname);
         project.add_member(person, row.isprojectadmin);
         result.push(project);
-    };
+    }
     match result.len() {
-        0 => {
-            Ok(None)
-        }
-        1 => {
-            Ok(result.pop())
-        }
-        _ => {
-            Err(DBError::ProjectNotUnique(id))
-        }
+        0 => Ok(None),
+        1 => Ok(result.pop()),
+        _ => Err(DBError::ProjectNotUnique(id)),
     }
 }
 
 /// remove the given persons from the given project
-async fn remove_members(pool: PgPool, project_id: i32, members_to_remove: &[&Person<HasID>]) -> Result<(), DBError> {
+async fn remove_members(
+    pool: PgPool,
+    project_id: i32,
+    members_to_remove: &[&Person<HasID>],
+) -> Result<(), DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -183,7 +183,7 @@ async fn remove_members(pool: PgPool, project_id: i32, members_to_remove: &[&Per
         .execute(&mut *tx)
         .await
         .map_err(DBError::CannotInsertPPMap)?;
-    };
+    }
 
     tx.commit()
         .await
@@ -192,7 +192,11 @@ async fn remove_members(pool: PgPool, project_id: i32, members_to_remove: &[&Per
 }
 
 /// remove the given persons from the given project
-async fn add_members(pool: PgPool, project_id: i32, members_to_add: &[(&Person<HasID>, &bool)]) -> Result<(), DBError> {
+async fn add_members(
+    pool: PgPool,
+    project_id: i32,
+    members_to_add: &[(&Person<HasID>, &bool)],
+) -> Result<(), DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -207,7 +211,7 @@ async fn add_members(pool: PgPool, project_id: i32, members_to_add: &[(&Person<H
         .execute(&mut *tx)
         .await
         .map_err(DBError::CannotInsertPPMap)?;
-    };
+    }
 
     tx.commit()
         .await
@@ -217,25 +221,36 @@ async fn add_members(pool: PgPool, project_id: i32, members_to_add: &[(&Person<H
 
 /// Set(overwrite) the members of a project
 async fn update_project_members(pool: PgPool, project: Project<HasID>) -> Result<(), DBError> {
-    let old_project = get_project(pool.clone(), project.project_id()).await?.ok_or(DBError::ProjectDoesNotExist(project.project_id(), project.name.clone()))?;
+    let old_project = get_project(pool.clone(), project.project_id())
+        .await?
+        .ok_or(DBError::ProjectDoesNotExist(
+            project.project_id(),
+            project.name.clone(),
+        ))?;
 
-    let members_to_remove = old_project.members.iter().filter_map(
-        |(m, _)| {
-        if project.members.iter().any(|(n, _)| m == n) {
-            Some(m)
-        } else {
-            None
-        }
-        }).collect::<Vec<_>>();
+    let members_to_remove = old_project
+        .members
+        .iter()
+        .filter_map(|(m, _)| {
+            if project.members.iter().any(|(n, _)| m == n) {
+                Some(m)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
     // this also tracks admin-status
-    let members_to_add = project.members.iter().filter_map(
-        |(m, is_adm)| {
-        if old_project.members.iter().any(|(n, _)| m == n) {
-            Some((m, is_adm))
-        } else {
-            None
-        }
-        }).collect::<Vec<_>>();
+    let members_to_add = project
+        .members
+        .iter()
+        .filter_map(|(m, is_adm)| {
+            if old_project.members.iter().any(|(n, _)| m == n) {
+                Some((m, is_adm))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
 
     // delete stale members
     remove_members(pool.clone(), project.project_id(), &members_to_remove).await?;
@@ -278,8 +293,10 @@ async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<HasID>>, D
     .map_err(DBError::CannotSelectPersonByExactName)?;
 
     let id: i32 = match id_result {
-        Some(x) => { x.personid }
-        None => {return Ok(None);}
+        Some(x) => x.personid,
+        None => {
+            return Ok(None);
+        }
     };
     Ok(Some(Person::<HasID>::new(id, name.to_owned())))
 }
@@ -290,9 +307,7 @@ mod test {
     use sqlx::PgPool;
 
     #[sqlx::test(fixtures("empty"))]
-    async fn test_add_person(
-        pool: PgPool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_add_person(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let person = Person::<NoID> {
             person_id: NoID::default(),
             name: "John Doe".to_owned(),
@@ -301,30 +316,23 @@ mod test {
         Ok(())
     }
 
-
     #[sqlx::test(fixtures("two_projects"))]
-    async fn test_get_projects(
-        pool: PgPool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_get_projects(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let projects = get_projects(pool).await.unwrap();
         assert_eq!(projects.len(), 2);
         Ok(())
     }
 
     #[sqlx::test(fixtures("two_projects"))]
-    async fn test_add_project(
-        pool: PgPool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let new_project: Project::<NoID> = Project::new((), "some new name".to_owned());
+    async fn test_add_project(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
+        let new_project: Project<NoID> = Project::new((), "some new name".to_owned());
         let idd_project = add_project(pool, new_project).await.unwrap();
         assert_eq!(idd_project.project_id(), 3);
         Ok(())
     }
 
     #[sqlx::test(fixtures("two_projects"))]
-    async fn test_add_members(
-        pool: PgPool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_add_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
         let adam = Person::new(1, "Adam".to_owned());
         let persons = vec![(&adam, &false)];
@@ -336,9 +344,7 @@ mod test {
     }
 
     #[sqlx::test(fixtures("two_projects"))]
-    async fn test_remove_members(
-        pool: PgPool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_remove_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
         let adam = Person::new(1, "Adam".to_owned());
         let persons = vec![&adam];
@@ -350,9 +356,7 @@ mod test {
     }
 
     #[sqlx::test(fixtures("two_projects"))]
-    async fn test_update_members(
-        pool: PgPool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_update_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
         let david = Person::<NoID>::new((), "David".to_owned());
         let hanna = Person::<NoID>::new((), "Hanna".to_owned());
