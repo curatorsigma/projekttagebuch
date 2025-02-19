@@ -1,8 +1,8 @@
 //! The [`Person`] Type used throughout
 
-use super::DBID;
+use super::{HasID, DBID};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Person<I: DBID> {
     pub(crate) person_id: I,
     pub(crate) name: String,
@@ -19,5 +19,11 @@ where
             person_id: person_id.into(),
             name,
         }
+    }
+}
+
+impl Person<HasID> {
+    pub fn person_id(&self) -> i32 {
+        self.person_id.id
     }
 }

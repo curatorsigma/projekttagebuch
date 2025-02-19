@@ -7,7 +7,7 @@ authors = ["Jonathan Schleucher"]
 [dependencies]
 serde = { version = "1.0.208", features = ["derive"] }
 tokio = { version = "1.39.3", features = ["full"] }
-sqlx = { version = "0.8.1", features = ["sqlite", "postgres", "runtime-tokio-rustls", "tls-rustls"] }
+sqlx = { version = "0.8.3", features = ["sqlite", "postgres", "runtime-tokio-rustls", "tls-rustls"] }
 time = { version = "0.3.36", features = ["formatting", "local-offset"] }
 tracing = { version = "0.1.40", features = ["attributes"] }
 tracing-appender = "0.2.3"
