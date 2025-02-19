@@ -40,7 +40,7 @@ mod post {
                 user
             }
             Ok(None) => {
-                warn!("Returning redirect, because the user supplied the wrong password or was not found via the user filter.");
+                warn!("Returning redirect, because the user {} supplied the wrong password or was not found via the user filter.", creds.username);
                 return Redirect::to("/login").into_response();
             }
             Err(e) => {
