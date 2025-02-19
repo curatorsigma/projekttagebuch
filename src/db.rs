@@ -2,7 +2,7 @@
 
 use sqlx::{PgPool, Row};
 
-use crate::types::{HasID, NoID, Person, Project};
+use crate::types::{HasID, NoID, Person, Project, UserPermission};
 
 #[derive(Debug)]
 pub(crate) enum DBError {
@@ -81,13 +81,13 @@ async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
 
         for project in result.iter_mut() {
             if project.project_id() == row.projectid {
-                project.add_member(person, row.isprojectadmin);
+                project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
                 continue 'row;
             };
         }
         // no existing project fit - create a new one
         let mut project = Project::new(row.projectid, row.projectname);
-        project.add_member(person, row.isprojectadmin);
+        project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
         result.push(project);
     }
     Ok(result)
@@ -113,7 +113,7 @@ async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<Project<Has
         sqlx::query!("INSERT INTO PersonProjectMap (PersonID, ProjectID, IsProjectAdmin) VALUES ($1, $2, $3);",
             member.0.person_id(),
             new_id.projectid,
-            member.1,
+            member.1.is_admin(),
             )
             .execute(&mut *tx)
             .await
@@ -148,13 +148,13 @@ async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DB
 
         for project in result.iter_mut() {
             if project.project_id() == row.projectid {
-                project.add_member(person, row.isprojectadmin);
+                project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
                 continue 'row;
             };
         }
         // no existing project fit - create a new one
         let mut project = Project::new(row.projectid, row.projectname);
-        project.add_member(person, row.isprojectadmin);
+        project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
         result.push(project);
     }
     match result.len() {
@@ -195,18 +195,18 @@ async fn remove_members(
 async fn add_members(
     pool: PgPool,
     project_id: i32,
-    members_to_add: &[(&Person<HasID>, &bool)],
+    members_to_add: &[(&Person<HasID>, &UserPermission)],
 ) -> Result<(), DBError> {
     let mut tx = pool
         .begin()
         .await
         .map_err(DBError::CannotStartTransaction)?;
-    for (mem, is_adm) in members_to_add.iter() {
+    for (mem, permission) in members_to_add.iter() {
         sqlx::query!(
             "INSERT INTO PersonProjectMap (PersonID, ProjectID, IsProjectAdmin) VALUES ($1, $2, $3);",
             mem.person_id(),
             project_id,
-            is_adm,
+            permission.is_admin(),
         )
         .execute(&mut *tx)
         .await
@@ -335,7 +335,7 @@ mod test {
     async fn test_add_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
         let adam = Person::new(1, "Adam".to_owned());
-        let persons = vec![(&adam, &false)];
+        let persons = vec![(&adam, &UserPermission::User)];
         add_members(pool.clone(), project_id, &persons).await?;
 
         let project = get_project(pool.clone(), project_id).await?.unwrap();
@@ -367,9 +367,9 @@ mod test {
         let samuel = add_person(pool.clone(), samuel).await?;
 
         let mut basil_1 = Project::new(1, "1Basil".to_owned());
-        basil_1.members.push((david, false));
-        basil_1.members.push((hanna, true));
-        basil_1.members.push((samuel, true));
+        basil_1.members.push((david, UserPermission::User));
+        basil_1.members.push((hanna, UserPermission::Admin));
+        basil_1.members.push((samuel, UserPermission::Admin));
 
         update_project_members(pool.clone(), basil_1).await?;
 

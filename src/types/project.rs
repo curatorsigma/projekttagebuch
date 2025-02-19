@@ -8,7 +8,7 @@ use super::{HasID, NoID, Person, UserPermission, DBID};
 pub(crate) struct Project<I: DBID> {
     project_id: I,
     pub(crate) name: String,
-    pub(crate) members: Vec<(Person<HasID>, bool)>,
+    pub(crate) members: Vec<(Person<HasID>, UserPermission)>,
 }
 
 #[derive(Template)]
@@ -44,8 +44,8 @@ impl Project<HasID> {
         self.project_id.id
     }
 
-    pub(crate) fn add_member(&mut self, person: Person<HasID>, is_admin: bool) {
-        self.members.push((person, is_admin));
+    pub(crate) fn add_member(&mut self, person: Person<HasID>, permission: UserPermission) {
+        self.members.push((person, permission));
     }
 }
 
