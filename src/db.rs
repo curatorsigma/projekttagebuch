@@ -365,7 +365,7 @@ async fn get_all_persons(pool: PgPool) -> Result<Vec<Person<HasID>>, DBError> {
 ///
 /// NOTE: Permissions are global permissions here, not project-based.
 pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), DBError> {
-    debug!("Want to insert these users into db: {users:?}");
+    trace!("Want these users to be in the db: {users:?}");
     // first get users from DB to calculate diff
     let users_in_db = get_all_persons(pool.clone()).await?;
 
