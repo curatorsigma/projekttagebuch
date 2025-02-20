@@ -76,7 +76,7 @@ impl core::fmt::Display for DBError {
 impl std::error::Error for DBError {}
 
 /// Get a list of projects
-async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
+pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
     let rows = sqlx::query!(
         "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, Person.IsGlobalAdmin, PersonProjectMap.IsProjectAdmin
             FROM Project
@@ -316,7 +316,7 @@ async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>,
 }
 
 /// Get a person from the DB by name (exact)
-async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<HasID>>, DBError> {
+pub async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<HasID>>, DBError> {
     let mut tx = pool
         .begin()
         .await

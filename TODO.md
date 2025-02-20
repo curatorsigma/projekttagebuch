@@ -1,6 +1,6 @@
 # TODO
-## DB programmieren
-- get users from ldap into db
+## DB
+### Projekte können archiviert werden (einfacher bool `IsArchived` in der DB und in den Typen)
 
 ## Web programmieren
 ### Frontend - Views
