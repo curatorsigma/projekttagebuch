@@ -13,26 +13,26 @@ use crate::{
 
 #[derive(Debug)]
 enum SyncError {
-    DB(DBError),
-    LDAP(LDAPError),
+    Db(DBError),
+    Ldap(LDAPError),
 }
 impl core::fmt::Display for SyncError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DB(x) => write!(f, "Error while updating DB: {x}."),
-            Self::LDAP(x) => write!(f, "Error while reading from LDAP: {x}."),
+            Self::Db(x) => write!(f, "Error while updating DB: {x}."),
+            Self::Ldap(x) => write!(f, "Error while reading from LDAP: {x}."),
         }
     }
 }
 impl std::error::Error for SyncError {}
 impl From<DBError> for SyncError {
     fn from(value: DBError) -> Self {
-        Self::DB(value)
+        Self::Db(value)
     }
 }
 impl From<LDAPError> for SyncError {
     fn from(value: LDAPError) -> Self {
-        Self::LDAP(value)
+        Self::Ldap(value)
     }
 }
 
