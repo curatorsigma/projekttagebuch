@@ -1,6 +1,6 @@
 //! Permissions that an individual user can have.
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) enum UserPermission {
     User,
     Admin,

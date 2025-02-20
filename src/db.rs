@@ -1,6 +1,7 @@
 //! Low level Database primitives
 
 use sqlx::{PgPool, Row};
+use tracing::{debug, info};
 
 use crate::types::{HasID, NoID, Person, Project, UserPermission};
 
@@ -15,7 +16,9 @@ pub(crate) enum DBError {
     CannotInsertProject(sqlx::Error),
     CannotInsertPPMap(sqlx::Error),
     CannotSelectProjects(sqlx::Error),
+    CannotSelectPersons(sqlx::Error),
     CannotSelectPersonByExactName(sqlx::Error),
+    CannotDeletePerson(sqlx::Error, String),
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
@@ -48,8 +51,14 @@ impl core::fmt::Display for DBError {
             Self::CannotSelectProjects(x) => {
                 write!(f, "Unable to select projects: {x}")
             }
+            Self::CannotSelectPersons(x) => {
+                write!(f, "Unable to select persons: {x}")
+            }
             Self::CannotSelectPersonByExactName(x) => {
                 write!(f, "Unable to select person with exact name: {x}")
+            }
+            Self::CannotDeletePerson(x, y) => {
+                write!(f, "Unable to delete person with id {x} and name {y}.")
             }
             Self::ProjectDoesNotExist(x, y) => {
                 write!(f, "The project with id {x}, name {y} does not exist.")
@@ -65,7 +74,7 @@ impl std::error::Error for DBError {}
 /// Get a list of projects
 async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
     let rows = sqlx::query!(
-        "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, PersonProjectMap.IsProjectAdmin
+        "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, Person.IsGlobalAdmin, PersonProjectMap.IsProjectAdmin
             FROM Project
         INNER JOIN PersonProjectMap
             ON Project.ProjectID = PersonProjectMap.ProjectID
@@ -77,17 +86,27 @@ async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
         .map_err(DBError::CannotSelectProjects)?;
     let mut result: Vec<Project<HasID>> = vec![];
     'row: for row in rows {
-        let person = Person::new(row.personid, row.personname);
+        let person = Person::new(
+            row.personid,
+            row.personname,
+            UserPermission::new_from_is_admin(row.isglobaladmin),
+        );
 
         for project in result.iter_mut() {
             if project.project_id() == row.projectid {
-                project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
+                project.add_member(
+                    person,
+                    UserPermission::new_from_is_admin(row.isprojectadmin),
+                );
                 continue 'row;
             };
         }
         // no existing project fit - create a new one
         let mut project = Project::new(row.projectid, row.projectname);
-        project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
+        project.add_member(
+            person,
+            UserPermission::new_from_is_admin(row.isprojectadmin),
+        );
         result.push(project);
     }
     Ok(result)
@@ -129,7 +148,7 @@ async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<Project<Has
 /// Get a project from known ID
 async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DBError> {
     let rows = sqlx::query!(
-        "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, PersonProjectMap.IsProjectAdmin
+        "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, Person.IsGlobalAdmin, PersonProjectMap.IsProjectAdmin
             FROM Project
         INNER JOIN PersonProjectMap
             ON Project.ProjectID = PersonProjectMap.ProjectID
@@ -144,17 +163,27 @@ async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DB
         .map_err(DBError::CannotSelectProjects)?;
     let mut result: Vec<Project<HasID>> = vec![];
     'row: for row in rows {
-        let person = Person::new(row.personid, row.personname);
+        let person = Person::new(
+            row.personid,
+            row.personname,
+            UserPermission::new_from_is_admin(row.isglobaladmin),
+        );
 
         for project in result.iter_mut() {
             if project.project_id() == row.projectid {
-                project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
+                project.add_member(
+                    person,
+                    UserPermission::new_from_is_admin(row.isprojectadmin),
+                );
                 continue 'row;
             };
         }
         // no existing project fit - create a new one
         let mut project = Project::new(row.projectid, row.projectname);
-        project.add_member(person, UserPermission::new_from_is_admin(row.isprojectadmin));
+        project.add_member(
+            person,
+            UserPermission::new_from_is_admin(row.isprojectadmin),
+        );
         result.push(project);
     }
     match result.len() {
@@ -267,15 +296,19 @@ async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>,
         .await
         .map_err(DBError::CannotStartTransaction)?;
     let new_id_result = sqlx::query!(
-        "INSERT INTO Person (PersonName) VALUES ($1) RETURNING PersonID",
+        "INSERT INTO Person (PersonName, IsGlobalAdmin) VALUES ($1, $2) RETURNING PersonID",
         &person.name,
+        &person.is_global_admin(),
     )
     .fetch_one(&mut *tx)
     .await
     .map_err(DBError::CannotInsertPerson)?;
 
-    let new_id: i32 = new_id_result.personid;
-    Ok(Person::<HasID>::new(new_id, person.name))
+    Ok(Person::<HasID>::new(
+        new_id_result.personid,
+        person.name,
+        person.global_permission,
+    ))
 }
 
 /// Get a person from the DB by name (exact)
@@ -285,20 +318,78 @@ async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<HasID>>, D
         .await
         .map_err(DBError::CannotStartTransaction)?;
     let id_result = sqlx::query!(
-        "SELECT PersonID from Person WHERE PersonName LIKE $1;",
+        "SELECT PersonID, IsGlobalAdmin from Person WHERE PersonName LIKE $1;",
         name,
     )
     .fetch_optional(&mut *tx)
     .await
     .map_err(DBError::CannotSelectPersonByExactName)?;
 
-    let id: i32 = match id_result {
-        Some(x) => x.personid,
-        None => {
-            return Ok(None);
-        }
+    match id_result {
+        Some(x) => Ok(Some(Person::<HasID>::new(
+            x.personid,
+            name.to_owned(),
+            UserPermission::new_from_is_admin(x.isglobaladmin),
+        ))),
+        None => Ok(None),
+    }
+}
+
+/// Get all persons from the DB
+async fn get_all_persons(pool: PgPool) -> Result<Vec<Person<HasID>>, DBError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+    let res = sqlx::query!("SELECT PersonID, PersonName, IsGlobalAdmin from Person;",)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(DBError::CannotSelectPersons)?;
+    Ok(res
+        .into_iter()
+        .map(|r| {
+            Person::new(
+                r.personid,
+                r.personname,
+                UserPermission::new_from_is_admin(r.isglobaladmin),
+            )
+        })
+        .collect::<Vec<_>>())
+}
+
+/// Update users in the DB such that exactly these users exist with these permissions.
+///
+/// NOTE: Permissions are global permissions here, not project-based.
+pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), DBError> {
+    debug!("Want to insert these users into db: {users:?}");
+    // first get users from DB to calculate diff
+    let users_in_db = get_all_persons(pool.clone()).await?;
+
+    let users_to_delete = users_in_db
+        .iter()
+        .filter(|p| users.iter().all(|q| p.name != q.name));
+    let mut tx = pool.begin().await.map_err(DBError::CannotStartTransaction)?;
+    for user in users_to_delete {
+        sqlx::query!("DELETE FROM Person WHERE PersonID = $1;", user.person_id(),)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DBError::CannotDeletePerson(e, user.name.clone()))?;
+        info!("Removed user {} from DB. They no longer exist in LDAP.", user.name)
     };
-    Ok(Some(Person::<HasID>::new(id, name.to_owned())))
+    for user in users {
+        sqlx::query!(
+            "INSERT INTO Person (PersonName, IsGlobalAdmin) VALUES ($1, $2) ON CONFLICT (PersonName) DO UPDATE SET IsGlobalAdmin = $2;",
+            user.name,
+            user.is_global_admin())
+            .execute(&mut *tx)
+            .await
+            .map_err(DBError::CannotInsertPerson)?;
+    }
+
+    tx.commit()
+        .await
+        .map_err(DBError::CannotCommitTransaction)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -311,6 +402,7 @@ mod test {
         let person = Person::<NoID> {
             person_id: NoID::default(),
             name: "John Doe".to_owned(),
+            global_permission: UserPermission::User,
         };
         add_person(pool, person).await.unwrap();
         Ok(())
@@ -334,7 +426,7 @@ mod test {
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_add_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
-        let adam = Person::new(1, "Adam".to_owned());
+        let adam = Person::new(1, "Adam".to_owned(), UserPermission::Admin);
         let persons = vec![(&adam, &UserPermission::User)];
         add_members(pool.clone(), project_id, &persons).await?;
 
@@ -346,7 +438,7 @@ mod test {
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_remove_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
-        let adam = Person::new(1, "Adam".to_owned());
+        let adam = Person::new(1, "Adam".to_owned(), UserPermission::User);
         let persons = vec![&adam];
         remove_members(pool.clone(), project_id, &persons).await?;
 
@@ -358,9 +450,9 @@ mod test {
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_update_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
-        let david = Person::<NoID>::new((), "David".to_owned());
-        let hanna = Person::<NoID>::new((), "Hanna".to_owned());
-        let samuel = Person::<NoID>::new((), "Samuel".to_owned());
+        let david = Person::<NoID>::new((), "David".to_owned(), UserPermission::Admin);
+        let hanna = Person::<NoID>::new((), "Hanna".to_owned(), UserPermission::User);
+        let samuel = Person::<NoID>::new((), "Samuel".to_owned(), UserPermission::User);
 
         let david = add_person(pool.clone(), david).await?;
         let hanna = add_person(pool.clone(), hanna).await?;
@@ -375,6 +467,19 @@ mod test {
 
         let project = get_project(pool.clone(), project_id).await?.unwrap();
         assert_eq!(project.members.len(), 2);
+
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("two_projects"))]
+    async fn test_update_users(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
+        let david = Person::<NoID>::new((), "David".to_owned(), UserPermission::Admin);
+        let hanna = Person::<NoID>::new((), "Hanna".to_owned(), UserPermission::User);
+        let samuel = Person::<NoID>::new((), "Samuel".to_owned(), UserPermission::User);
+
+        update_users(pool.clone(), vec![david, hanna, samuel]).await?;
+        let persons = get_all_persons(pool.clone()).await?;
+        assert_eq!(persons.len(), 3);
 
         Ok(())
     }

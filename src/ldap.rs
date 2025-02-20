@@ -3,6 +3,8 @@ use ldap3::{Ldap, LdapConnAsync, LdapError, Scope, SearchEntry};
 use serde::Deserialize;
 use tracing::{info, warn, Level};
 
+use crate::types::{NoID, Person, UserPermission};
+
 /// escape parameter such that it may be used in a search filter
 /// uses RFC2254 Section 4 and RFC4514 Section 2.4
 ///
@@ -187,6 +189,70 @@ impl LDAPBackend {
         };
         Ok((our_handle, Some(user)))
     }
+
+    /// Check if the user with the given uid has write access and return the appropriate
+    /// [`UserPermission`].
+    async fn permission<S>(&self, mut handle: Ldap, uid: S) -> Result<UserPermission, LDAPError>
+    where
+        S: AsRef<str>,
+    {
+        let complete_filter = format!(
+            "(&(uid={})(&({})({})))",
+            uid.as_ref(),
+            &self.user_filter,
+            &self.write_access_filter,
+        );
+        let (rs, _res) = handle
+            .search(
+                &self.base_dn,
+                Scope::OneLevel,
+                &complete_filter,
+                vec!["uid"],
+            )
+            .await
+            .map_err(LDAPError::CannotSearch)?
+            .success()
+            .map_err(LDAPError::UserError)?;
+
+        if rs.len() == 1 {
+            Ok(UserPermission::Admin)
+        } else {
+            Ok(UserPermission::User)
+        }
+    }
+
+    /// Get all users and find whether they are Admins (have write-access) or not.
+    pub async fn get_all_users(&self) -> Result<Vec<Person<NoID>>, LDAPError> {
+        let mut our_handle = self.new_bound_connection().await?;
+
+        let complete_filter = format!("({})", &self.user_filter,);
+        let (rs, _res) = our_handle
+            .search(
+                &self.base_dn,
+                Scope::OneLevel,
+                &complete_filter,
+                vec!["uid"],
+            )
+            .await
+            .map_err(LDAPError::CannotSearch)?
+            .success()
+            .map_err(LDAPError::UserError)?;
+        let mut res = Vec::<Person<NoID>>::new();
+        for entry in rs.into_iter() {
+            let object = SearchEntry::construct(entry);
+            let uids = object
+                .attrs
+                .get("uid")
+                .ok_or(LDAPError::AttributeMissing("uid".to_owned()))?;
+            let Some(uid) = uids.iter().next() else {
+                return Err(LDAPError::NotExactlyOneOfAttribute("uid".to_owned()));
+            };
+            // check if this user has write access
+            let permission = self.permission(our_handle.clone(), uid).await?;
+            res.push(Person::<NoID>::new((), uid.clone(), permission));
+        }
+        Ok(res)
+    }
 }
 
 #[async_trait::async_trait]
@@ -242,6 +308,7 @@ pub enum LDAPError {
     MultipleUsersWithSameUid(String),
     AttributeMissing(String),
     NotExactlyOneOfAttribute(String),
+    UserDoesNotExist(String),
 }
 impl std::fmt::Display for LDAPError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -269,6 +336,9 @@ impl std::fmt::Display for LDAPError {
             }
             Self::NotExactlyOneOfAttribute(x) => {
                 write!(f, "There is not exactly one value for attribute {x}")
+            }
+            Self::UserDoesNotExist(x) => {
+                write!(f, "The user with uid {x} does not exist.")
             }
         }
     }

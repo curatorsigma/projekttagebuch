@@ -1,14 +1,6 @@
 # TODO
-## Core
-- AuthzBackend implementieren, die admin permissions global und projektbasiert irgendwie darstellen
-- projekt "archiviert"
-
 ## DB programmieren
-- CRUD projekt
-- Add user to projekt
-- remove user from projekt
 - get users from ldap into db
-- get projekt protokoll
 
 ## Web programmieren
 ### Frontend - Views

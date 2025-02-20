@@ -5,12 +5,11 @@ use axum_login::{
     AuthManagerLayerBuilder,
 };
 use sqlx::SqlitePool;
-use time::Duration;
 use tower_sessions::{cookie::Key, ExpiredDeletion};
 use tower_sessions_sqlx_store::SqliteStore;
 use uuid::Uuid;
 
-use std::{str::FromStr, sync::Arc};
+use std::{future::Future, str::FromStr, sync::Arc, time::Duration};
 
 use axum::{
     extract::Host,
@@ -20,9 +19,9 @@ use axum::{
     routing::get,
     Extension, Router,
 };
-use tracing::{event, Level};
+use tracing::{debug, event, Level};
 
-use crate::{config::Config, ldap::LDAPBackend};
+use crate::{config::Config, ldap::LDAPBackend, InShutdown};
 pub(crate) mod login;
 mod protected;
 
@@ -51,6 +50,7 @@ impl Webserver {
     pub async fn run_web_server(
         &self,
         config: Arc<Config>,
+        watcher: tokio::sync::watch::Receiver<InShutdown>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Session layer.
         //
@@ -69,7 +69,7 @@ impl Webserver {
 
         let session_layer = SessionManagerLayer::new(session_store)
             .with_secure(false)
-            .with_expiry(Expiry::OnInactivity(Duration::hours(12)))
+            .with_expiry(Expiry::OnInactivity(time::Duration::hours(12)))
             .with_signed(key);
 
         // Auth service.
@@ -106,16 +106,33 @@ impl Webserver {
         .expect("Should be able to parse socket addr");
         event!(Level::INFO, "Webserver (HTTPS) listening on {}", addr);
 
+        let shutdown_handle = axum_server::Handle::new();
+        let shutdown_future = shutdown_signal(shutdown_handle.clone(), watcher.clone());
+
         // run the redirect service HTTPS -> HTTP on its own port
-        tokio::spawn(redirect_http_to_https(config.clone()));
+        tokio::spawn(redirect_http_to_https(config.clone(), shutdown_future));
 
         // serve the main app on HTTPS
         axum_server::bind_rustls(addr, config.web_config.rustls_config.clone())
+            .handle(shutdown_handle)
             .serve(app.into_make_service())
             .await
             .expect("Should be able to start service");
 
         Ok(())
+    }
+}
+
+async fn shutdown_signal(
+    handle: axum_server::Handle,
+    mut watcher: tokio::sync::watch::Receiver<InShutdown>,
+) {
+    tokio::select! {
+        _ = watcher.changed() => {
+            debug!("Shutting down web server now.");
+            handle.graceful_shutdown(Some(Duration::from_secs(5)));
+            return;
+        }
     }
 }
 
@@ -139,7 +156,10 @@ fn make_https(
     Ok(Uri::from_parts(parts)?)
 }
 
-async fn redirect_http_to_https(config: Arc<Config>) {
+async fn redirect_http_to_https<F>(config: Arc<Config>, signal: F)
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     let redir_web_bind_port = config.web_config.bind_port;
     let redir_web_bind_port_tls = config.web_config.bind_port_tls;
     let redirect = move |Host(host): Host, uri: Uri| async move {
@@ -172,7 +192,10 @@ async fn redirect_http_to_https(config: Arc<Config>) {
             .local_addr()
             .expect("Local address of bound http -> https should be readable.")
     );
-    if let Err(e) = axum::serve(listener, redirect.into_make_service()).await {
+    if let Err(e) = axum::serve(listener, redirect.into_make_service())
+        .with_graceful_shutdown(signal)
+        .await
+    {
         tracing::error!("Could not start the http -> https redirect server: {e}");
         panic!("Unable to start http -> https server. Unrecoverable.");
     };
