@@ -1,7 +1,7 @@
 //! Low level Database primitives
 
 use sqlx::{PgPool, Row};
-use tracing::{debug, info, trace};
+use tracing::{info, trace};
 
 use crate::types::{HasID, NoID, Person, Project, UserPermission};
 
@@ -405,18 +405,29 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
                 .execute(&mut *tx)
                 .await
                 .map_err(DBError::CannotInsertPerson)?;
-                info!("Inserted new user {} into DB as {}.", user.name, user.is_global_admin());
+                info!(
+                    "Inserted new user {} into DB as {}.",
+                    user.name,
+                    user.is_global_admin()
+                );
             }
             Some(row) => {
                 let old_is_global_admin = row.isglobaladmin;
                 if old_is_global_admin == user.is_global_admin() {
                     trace!("User {}: Still exists, admin status unchanged.", user.name);
                 } else {
-                    sqlx::query!("UPDATE Person SET IsGlobalAdmin = $1 WHERE PersonName = $2;", user.is_global_admin(), user.name,)
-                        .execute(&mut *tx)
-                        .await
-                        .map_err(|e| DBError::CannotUpdateGlobalPermissions(e, user.name.to_owned()))?;
-                    info!("Global Admin Status for {} changed. Is now: {}.", user.name, user.global_permission);
+                    sqlx::query!(
+                        "UPDATE Person SET IsGlobalAdmin = $1 WHERE PersonName = $2;",
+                        user.is_global_admin(),
+                        user.name,
+                    )
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| DBError::CannotUpdateGlobalPermissions(e, user.name.to_owned()))?;
+                    info!(
+                        "Global Admin Status for {} changed. Is now: {}.",
+                        user.name, user.global_permission
+                    );
                 };
             }
         };
