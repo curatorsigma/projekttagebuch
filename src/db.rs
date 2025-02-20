@@ -1,7 +1,7 @@
 //! Low level Database primitives
 
 use sqlx::{PgPool, Row};
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
 use crate::types::{HasID, NoID, Person, Project, UserPermission};
 
@@ -19,6 +19,7 @@ pub(crate) enum DBError {
     CannotSelectPersons(sqlx::Error),
     CannotSelectPersonByExactName(sqlx::Error),
     CannotDeletePerson(sqlx::Error, String),
+    CannotUpdateGlobalPermissions(sqlx::Error, String),
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
@@ -59,6 +60,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotDeletePerson(x, y) => {
                 write!(f, "Unable to delete person with id {x} and name {y}.")
+            }
+            Self::CannotUpdateGlobalPermissions(x, y) => {
+                write!(f, "Cannot update global permissions for user {}: {}.", x, y)
             }
             Self::ProjectDoesNotExist(x, y) => {
                 write!(f, "The project with id {x}, name {y} does not exist.")
@@ -368,22 +372,54 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
     let users_to_delete = users_in_db
         .iter()
         .filter(|p| users.iter().all(|q| p.name != q.name));
-    let mut tx = pool.begin().await.map_err(DBError::CannotStartTransaction)?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
     for user in users_to_delete {
         sqlx::query!("DELETE FROM Person WHERE PersonID = $1;", user.person_id(),)
             .execute(&mut *tx)
             .await
             .map_err(|e| DBError::CannotDeletePerson(e, user.name.clone()))?;
-        info!("Removed user {} from DB. They no longer exist in LDAP.", user.name)
-    };
+        info!(
+            "Removed user {} from DB. They no longer exist in LDAP.",
+            user.name
+        )
+    }
     for user in users {
-        sqlx::query!(
-            "INSERT INTO Person (PersonName, IsGlobalAdmin) VALUES ($1, $2) ON CONFLICT (PersonName) DO UPDATE SET IsGlobalAdmin = $2;",
+        // get user by name
+        let person = sqlx::query!(
+            "SELECT PersonID, IsGlobalAdmin from Person WHERE PersonName LIKE $1;",
             user.name,
-            user.is_global_admin())
-            .execute(&mut *tx)
-            .await
-            .map_err(DBError::CannotInsertPerson)?;
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(DBError::CannotSelectPersonByExactName)?;
+        match person {
+            None => {
+                sqlx::query!(
+                    "INSERT INTO Person (PersonName, IsGlobalAdmin) VALUES ($1, $2);",
+                    user.name,
+                    user.is_global_admin()
+                )
+                .execute(&mut *tx)
+                .await
+                .map_err(DBError::CannotInsertPerson)?;
+                info!("Inserted new user {} into DB as {}.", user.name, user.is_global_admin());
+            }
+            Some(row) => {
+                let old_is_global_admin = row.isglobaladmin;
+                if old_is_global_admin == user.is_global_admin() {
+                    trace!("User {}: Still exists, admin status unchanged.", user.name);
+                } else {
+                    sqlx::query!("UPDATE Person SET IsGlobalAdmin = $1 WHERE PersonName = $2;", user.is_global_admin(), user.name,)
+                        .execute(&mut *tx)
+                        .await
+                        .map_err(|e| DBError::CannotUpdateGlobalPermissions(e, user.name.to_owned()))?;
+                    info!("Global Admin Status for {} changed. Is now: {}.", user.name, user.global_permission);
+                };
+            }
+        };
     }
 
     tx.commit()
