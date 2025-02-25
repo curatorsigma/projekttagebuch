@@ -19,6 +19,7 @@ pub(super) mod get {
     };
 
     use super::*;
+    use core::borrow::Borrow;
 
     use askama::Template;
     use askama_axum::IntoResponse;
