@@ -60,7 +60,7 @@ pub async fn continuous_sync(
         match sync_res {
             Ok(()) => debug!("Successfully updated db."),
             Err(e) => {
-                warn!("Failed to update db from CT. Error encountered: {e}");
+                warn!("Failed to update db from LDAP. Error encountered: {e}");
             }
         };
 
