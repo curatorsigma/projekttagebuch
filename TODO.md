@@ -10,10 +10,10 @@
 - + Button für User hinzufügen und löschen
 #### Neues Projekt (Admin)
 #### Main
-- Filter: "nur meine Projekte"
-- Filter: "nur offene", default an (schließt archivierte aus)
-- Suchleiste nach Projektname
-- top-row wie asterconf
+- ggf später:
+    - Filter: "nur meine Projekte"
+    - Filter: "nur offene", default an (schließt archivierte aus)
+    - Suchleiste nach Projektname
 #### Main - Admin
 - Main + Button für neues Projekt
 
