@@ -192,7 +192,7 @@ impl LDAPBackend {
 
     /// Check if the user with the given uid has write access and return the appropriate
     /// [`UserPermission`].
-    async fn permission<S>(&self, mut handle: Ldap, uid: S) -> Result<UserPermission, LDAPError>
+    pub async fn permission<S>(&self, mut handle: Ldap, uid: S) -> Result<UserPermission, LDAPError>
     where
         S: AsRef<str>,
     {

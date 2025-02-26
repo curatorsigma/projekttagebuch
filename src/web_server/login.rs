@@ -26,6 +26,7 @@ mod post {
     use uuid::Uuid;
 
     use crate::web_server::InternalServerErrorTemplate;
+    use askama_axum::IntoResponse;
 
     use super::*;
 

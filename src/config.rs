@@ -168,6 +168,7 @@ async fn pg_pool_from_db_config_data(value: DbConfigData) -> Result<Pool<Postgre
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Config {
     pub(crate) log_level: String,
     pub(crate) log_location: String,

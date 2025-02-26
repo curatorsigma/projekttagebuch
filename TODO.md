@@ -1,7 +1,4 @@
 # TODO
-## DB
-### Projekte können archiviert werden (einfacher bool `IsArchived` in der DB und in den Typen)
-
 ## Web programmieren
 ### Frontend - Views
 #### Projekt - Anzeige

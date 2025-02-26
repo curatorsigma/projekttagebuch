@@ -117,7 +117,7 @@ pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> 
 }
 
 /// Add a new project
-async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<Project<HasID>, DBError> {
+pub(crate) async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<Project<HasID>, DBError> {
     let mut tx = pool
         .begin()
         .await

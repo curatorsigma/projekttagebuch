@@ -13,7 +13,7 @@ tracing = { version = "0.1.40", features = ["attributes"] }
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.18", features = ["time", "fmt", "env-filter"] }
 chrono = "0.4.38"
-axum = "0.7.5"
+axum = { version="0.7.5", features = ["form"] }
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 axum-login = "0.16.0"
 ldap3 = { version = "0.11.5", default-features = false, features = ["tls-rustls"] }
@@ -25,7 +25,6 @@ tower-sessions = { version = "0.13.0", default-features = false, features = [
     "signed",
 ] }
 tower-sessions-sqlx-store = { version = "0.14.0", features = ["sqlite"] }
-axum-extra = { version = "0.9.3", features = ["form"] }
 uuid = { version = "1.10.0", features = ["v4"] }
 # only so that we can install a default crypto provider.
 # used only transitively by some other dependencies

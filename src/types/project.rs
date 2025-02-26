@@ -1,6 +1,8 @@
 //! The [`Project`] type used throughout
 
-use askama::Template;
+use core::borrow::Borrow;
+
+use askama::{Html, Template};
 
 use super::{HasID, NoID, Person, UserPermission, DBID};
 
@@ -32,6 +34,19 @@ where
         }
     }
 }
+
+#[derive(askama::Template)]
+#[template(path="project/header_only.html")]
+struct ProjectDisplayHeaderOnly<'a> {
+    project: &'a Project<HasID>,
+}
+
+#[derive(askama::Template)]
+#[template(path="project/with_users.html")]
+struct ProjectDisplayWithUsers<'a> {
+    project: &'a Project<HasID>,
+}
+
 impl Project<HasID> {
     pub(crate) fn to_template(&self, permission: &UserPermission) -> ProjectTemplate {
         ProjectTemplate {
@@ -46,6 +61,16 @@ impl Project<HasID> {
 
     pub(crate) fn add_member(&mut self, person: Person<HasID>, permission: UserPermission) {
         self.members.push((person, permission));
+    }
+
+    /// Render self, displaying only the header
+    pub(crate) fn display_header_only(&self) -> String {
+        ProjectDisplayHeaderOnly { project: self, }.render().expect("static template")
+    }
+
+    /// Render self, displaying only the header
+    pub(crate) fn display_with_users(&self) -> String {
+        ProjectDisplayWithUsers { project: self, }.render().expect("static template")
     }
 }
 
