@@ -521,6 +521,9 @@
   .absolute {
     position: absolute;
   }
+  .fixed {
+    position: fixed;
+  }
   .relative {
     position: relative;
   }
@@ -533,11 +536,47 @@
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
+  .top-1 {
+    top: calc(var(--spacing) * 1);
+  }
+  .top-2 {
+    top: calc(var(--spacing) * 2);
+  }
+  .right-2 {
+    right: calc(var(--spacing) * 2);
+  }
+  .right-14 {
+    right: calc(var(--spacing) * 14);
+  }
+  .left-4 {
+    left: calc(var(--spacing) * 4);
+  }
+  .left-24 {
+    left: calc(var(--spacing) * 24);
+  }
   .z-20 {
     z-index: 20;
   }
   .z-40 {
     z-index: 40;
+  }
+  .container {
+    width: 100%;
+    @media (width >= 40rem) {
+      max-width: 40rem;
+    }
+    @media (width >= 48rem) {
+      max-width: 48rem;
+    }
+    @media (width >= 64rem) {
+      max-width: 64rem;
+    }
+    @media (width >= 80rem) {
+      max-width: 80rem;
+    }
+    @media (width >= 96rem) {
+      max-width: 96rem;
+    }
   }
   .m-1 {
     margin: calc(var(--spacing) * 1);
@@ -565,6 +604,9 @@
   }
   .block {
     display: block;
+  }
+  .contents {
+    display: contents;
   }
   .flex {
     display: flex;
@@ -599,6 +641,9 @@
   .h-10 {
     height: calc(var(--spacing) * 10);
   }
+  .h-12 {
+    height: calc(var(--spacing) * 12);
+  }
   .h-14 {
     height: calc(var(--spacing) * 14);
   }
@@ -607,6 +652,9 @@
   }
   .h-64 {
     height: calc(var(--spacing) * 64);
+  }
+  .h-screen {
+    height: 100vh;
   }
   .min-h-screen {
     min-height: 100vh;
@@ -649,6 +697,12 @@
   }
   .shrink {
     flex-shrink: 1;
+  }
+  .flex-grow {
+    flex-grow: 1;
+  }
+  .grow {
+    flex-grow: 1;
   }
   .border-collapse {
     border-collapse: collapse;
@@ -765,6 +819,9 @@
   .border-black {
     border-color: var(--color-black);
   }
+  .border-gray-400 {
+    border-color: var(--color-gray-400);
+  }
   .border-zinc-400 {
     border-color: var(--color-zinc-400);
   }
@@ -841,6 +898,12 @@
   }
   .text-gray-800 {
     color: var(--color-gray-800);
+  }
+  .text-indigo-600 {
+    color: var(--color-indigo-600);
+  }
+  .text-lime-600 {
+    color: var(--color-lime-600);
   }
   .text-neutral-800 {
     color: var(--color-neutral-800);
@@ -964,6 +1027,20 @@
       }
     }
   }
+  .hover\:text-indigo-400 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-indigo-400);
+      }
+    }
+  }
+  .hover\:text-lime-400 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-lime-400);
+      }
+    }
+  }
   .focus\:rounded-full {
     &:focus {
       border-radius: calc(infinity * 1px);
@@ -997,6 +1074,11 @@
   .xl\:grid-cols-3 {
     @media (width >= 80rem) {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .dark\:border-gray-600 {
+    @media (prefers-color-scheme: dark) {
+      border-color: var(--color-gray-600);
     }
   }
   .dark\:border-zinc-500 {
@@ -1034,11 +1116,6 @@
       background-color: var(--color-red-700);
     }
   }
-  .dark\:text-gray-200 {
-    @media (prefers-color-scheme: dark) {
-      color: var(--color-gray-200);
-    }
-  }
   .dark\:text-gray-400 {
     @media (prefers-color-scheme: dark) {
       color: var(--color-gray-400);
@@ -1049,9 +1126,24 @@
       color: var(--color-gray-900);
     }
   }
+  .dark\:text-green-400 {
+    @media (prefers-color-scheme: dark) {
+      color: var(--color-green-400);
+    }
+  }
+  .dark\:text-indigo-400 {
+    @media (prefers-color-scheme: dark) {
+      color: var(--color-indigo-400);
+    }
+  }
   .dark\:text-sky-400\/80 {
     @media (prefers-color-scheme: dark) {
       color: color-mix(in oklab, var(--color-sky-400) 80%, transparent);
+    }
+  }
+  .dark\:text-white {
+    @media (prefers-color-scheme: dark) {
+      color: var(--color-white);
     }
   }
   .dark\:hover\:bg-lime-700\/85 {
@@ -1077,6 +1169,24 @@
       &:hover {
         @media (hover: hover) {
           background-color: color-mix(in oklab, var(--color-red-700) 80%, transparent);
+        }
+      }
+    }
+  }
+  .dark\:hover\:text-green-300 {
+    @media (prefers-color-scheme: dark) {
+      &:hover {
+        @media (hover: hover) {
+          color: var(--color-green-300);
+        }
+      }
+    }
+  }
+  .dark\:hover\:text-indigo-300 {
+    @media (prefers-color-scheme: dark) {
+      &:hover {
+        @media (hover: hover) {
+          color: var(--color-indigo-300);
         }
       }
     }

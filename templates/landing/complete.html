@@ -13,8 +13,8 @@
 <body hx-ext="response-targets" class="min-h-screen bg-white dark:bg-gray-900 text-black dark:text-gray-400">
   <header class="sticky top-0 z-40 flex w-full justify-center border-b-4 border-zinc-400 bg-gray-300 font-mono text-black shadow-md backdrop-blur dark:border-zinc-600 dark:bg-gray-900 dark:text-gray-400">
     <div class="flex w-4/5 justify-between">
-      <div class="text-xl">$whoami &rarr; <b class="text-sky-500 dark:text-sky-400/80">{{ username }}</b></div>
-      <a class="h-8 w-12 bg-gray-300 text-xl text-sky-500 hover:rounded-2xl hover:bg-neutral-500 dark:bg-neutral-900 dark:text-sky-400/80 dark:hover:bg-neutral-700" href="/logout">
+      <div class="text-xl">$whoami &rarr; <b class="font-mono font-semibold dark:text-white">{{ username }}</b></div>
+      <a class="h-8 w-12 text-xl text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-gray-600 dark:bg-gray-900 dark:hover:bg-neutral-700 " href="/logout">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-8 w-8 translate-x-2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
         </svg>
@@ -22,13 +22,13 @@
     </div>
   </header>
 
-  <main class="border-zinc-400 bg-white pt-4 text-black dark:border-zinc-600 dark:bg-gray-900 dark:text-gray-400">
+  <main class="border-gray-400 dark:border-gray-600 bg-white pt-4 text-black dark:bg-gray-900 dark:text-gray-300">
     <div class="relative flex justify-center">
       <div class="text-xl text-red-500" id="error_display" _="on htmx:beforeSend from elsewhere set my innerHTML to ''"></div>
     </div>
 
     <div class="relative m-6 flex justify-center">
-      <button class="h-16 w-14 rounded-lg bg-lime-600 text-gray-800 hover:rounded-xl hover:bg-lime-500 dark:bg-lime-600/85 dark:hover:bg-lime-700/85">
+      <button class="h-16 w-14 rounded-lg text-lime-600 hover:text-lime-400 dark:text-green-500 dark:hover:text-green-300 hover:rounded-md hover:bg-gray-400 dark:bg-gray-900 dark:hover:bg-neutral-700 ">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-14 w-14">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
@@ -37,23 +37,22 @@
 
     <div id="project-list" class="grid w-screen grid-cols-1 place-items-center md:grid-cols-2 xl:grid-cols-3 mb-12">
       {% for project in projects %}
-      <div id="the-project-id" class="mt-6 w-3/4 rounded-t-4xl border-2 border-black md:w-5/6 dark:border-zinc-500">
+      <div id="project-{{project.project_id()}}" class="mt-6 w-3/4 rounded-t-4xl border-2 md:w-5/6 border-gray-400 dark:border-gray-600 bg-gray-300 dark:bg-gray-900">
         <div class="m-1 flex justify-evenly text-4xl font-semibold">{{ project.name }}</div>
         <div class="divide-x-2 border-1 border-r-0 border-l-0 text-lg sm:grid sm:grid-cols-3">
-          <div class="flex justify-around border-black bg-gray-300 text-xl text-sky-500 hover:rounded-md hover:bg-neutral-500 dark:border-zinc-500 dark:bg-gray-900 dark:text-sky-400/80 dark:hover:bg-neutral-700">
+          <div class="flex justify-around border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 text-xl hover:rounded-md hover:bg-gray-600 dark:hover:bg-neutral-700">
             <div>Protokoll</div>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 h-6 w-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
             </svg>
           </div>
-          <div class="flex justify-around border-black bg-gray-300 text-xl text-sky-500 hover:rounded-md hover:bg-neutral-500 dark:border-zinc-500 dark:bg-gray-900 dark:text-sky-400/80 dark:hover:bg-neutral-700">
+          <div class="flex justify-around border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 text-xl hover:rounded-md hover:bg-gray-600 dark:hover:bg-neutral-700">
             <div>Chat</div>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 h-6 w-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
             </svg>
           </div>
-          <div class="flex justify-around
-           border-black bg-gray-300 text-xl text-sky-500 hover:rounded-md hover:bg-neutral-500 dark:border-zinc-500 dark:bg-gray-900 dark:text-sky-400/80 dark:hover:bg-neutral-700">
+          <div class="flex justify-around border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 text-xl hover:rounded-md hover:bg-gray-600 dark:hover:bg-neutral-700 ">
             <div>Nutzer</div>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 h-6 w-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
@@ -69,12 +68,26 @@
               <div>{{ user.name }}</div>
             </div>
             <div class="flex justify-end">
-              <div class="w-14 translate-y-1">
+              <div class="w-18 translate-y-1">
 								{% if perm == UserPermission::Admin.borrow() %}
-									Admin
+									<div class="flex justify-end">
+  <div>Admin</div>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-neutral-500 dark:hover:bg-neutral-700 w-6 h-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 5.25 7.5 7.5 7.5-7.5m-15 6 7.5 7.5 7.5-7.5" />
+</svg>
+</div>
+                {% else %}
+                <div class="flex justify-end">
+  <div></div>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-neutral-500 dark:hover:bg-neutral-700 w-6 h-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 18.75 7.5-7.5 7.5 7.5" />
+  <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 7.5-7.5 7.5 7.5" />
+</svg>
+
+</div>
 								{% endif %}
 							</div>
-              <button class="h-10 w-10 rounded-lg bg-red-600 hover:rounded-xl hover:bg-red-500 dark:bg-red-700 dark:hover:bg-red-700/80">
+              <button class="h-10 w-10 rounded-lg text-rose-600 hover:text-rose-400 dark:text-rose-400 dark:hover:text-rose-300 hover:rounded-md hover:bg-neutral-500 dark:bg-gray-900 dark:hover:bg-neutral-700">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6 translate-x-2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M22 10.5h-6m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM4 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 10.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
                 </svg>
@@ -85,7 +98,7 @@
 
           <div id="add-a-user" class="flex justify-evenly">
             <div class="relative flex justify-center">
-              <button class="m-1 rounded-lg bg-lime-600 p-2 text-xl text-gray-800 hover:rounded-xl hover:bg-lime-500 dark:bg-lime-600/85 dark:hover:bg-lime-700/85">
+              <button class="m-1 rounded-lg p-2 text-xl text-lime-600 hover:text-lime-400 dark:text-green-500 dark:hover:text-green-300 hover:rounded-md hover:bg-neutral-500 dark:bg-gray-900 dark:hover:bg-neutral-700">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
                 </svg>
@@ -97,6 +110,5 @@
       {% endfor %}
     </div>
   </main>
-</body>
 </body>
 </html>
