@@ -7,14 +7,20 @@ pub(crate) struct Person<I: DBID> {
     pub(crate) person_id: I,
     pub(crate) name: String,
     pub(crate) global_permission: UserPermission,
-    pub(crate) surname: String,
-    pub(crate) firstname: String,
+    pub(crate) surname: Option<String>,
+    pub(crate) firstname: Option<String>,
 }
 impl<I> Person<I>
 where
     I: DBID,
 {
-    pub fn new<IdInto>(person_id: IdInto, name: String, global_permission: UserPermission, surname: String, firstname: String) -> Self
+    pub fn new<IdInto>(
+        person_id: IdInto,
+        name: String,
+        global_permission: UserPermission,
+        surname: Option<String>,
+        firstname: Option<String>,
+    ) -> Self
     where
         IdInto: Into<I>,
     {

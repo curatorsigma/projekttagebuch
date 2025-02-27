@@ -130,15 +130,24 @@ pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> 
         // no existing project fit - create a new one
         // This should not be possible because we have selected all projects in the same transaction
         warn!("Found no project for a PersonProjectMap entry. Check DB data integrity!");
-        warn!("Person {}, Project {} is mapped but Project does not exist.", row.personid, row.projectid);
-        return Err(DBError::PPMapEntryHasNoCorrespondingProject(row.personid, row.projectid))
+        warn!(
+            "Person {}, Project {} is mapped but Project does not exist.",
+            row.personid, row.projectid
+        );
+        return Err(DBError::PPMapEntryHasNoCorrespondingProject(
+            row.personid,
+            row.projectid,
+        ));
     }
     // deliberately no transaction commit because we have not written anything in it
     Ok(result)
 }
 
 /// Add a new project
-pub(crate) async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<Project<HasID>, DBError> {
+pub(crate) async fn add_project(
+    pool: PgPool,
+    project: Project<NoID>,
+) -> Result<Project<HasID>, DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -179,20 +188,18 @@ pub(crate) async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<
 
     // first get all projects (required if projects are empty)
     let rows = sqlx::query!(
-            "SELECT ProjectID, ProjectName FROM Project WHERE ProjectID = $1;",
-            id,
-        )
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(DBError::CannotSelectProjects)?;
+        "SELECT ProjectID, ProjectName FROM Project WHERE ProjectID = $1;",
+        id,
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(DBError::CannotSelectProjects)?;
     let mut project = match rows {
         None => {
             trace!("Project {id} does not exist.");
             return Ok(None);
         }
-        Some(x) => {
-            Project::<HasID>::new(x.projectid, x.projectname)
-        }
+        Some(x) => Project::<HasID>::new(x.projectid, x.projectname),
     };
 
     let rows = sqlx::query!(
@@ -228,9 +235,15 @@ pub(crate) async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<
         // no existing project fit - create a new one
         // This should not be possible because we have selected all projects in the same transaction
         warn!("Found no project for a PersonProjectMap entry. Check DB data integrity!");
-        warn!("Person {}, Project {} is mapped but Project does not exist.", row.personid, row.projectid);
-        return Err(DBError::PPMapEntryHasNoCorrespondingProject(row.personid, row.projectid))
-    };
+        warn!(
+            "Person {}, Project {} is mapped but Project does not exist.",
+            row.personid, row.projectid
+        );
+        return Err(DBError::PPMapEntryHasNoCorrespondingProject(
+            row.personid,
+            row.projectid,
+        ));
+    }
     Ok(Some(project))
 }
 
@@ -339,8 +352,8 @@ async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>,
     let new_id_result = sqlx::query!(
         "INSERT INTO Person (PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin) VALUES ($1, $2, $3, $4) RETURNING PersonID",
         &person.name,
-        &person.surname,
-        &person.firstname,
+        person.surname,
+        person.firstname,
         &person.is_global_admin(),
     )
     .fetch_one(&mut *tx)
@@ -388,10 +401,12 @@ async fn get_all_persons(pool: PgPool) -> Result<Vec<Person<HasID>>, DBError> {
         .begin()
         .await
         .map_err(DBError::CannotStartTransaction)?;
-    let res = sqlx::query!("SELECT PersonID, PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin from Person;",)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(DBError::CannotSelectPersons)?;
+    let res = sqlx::query!(
+        "SELECT PersonID, PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin from Person;",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(DBError::CannotSelectPersons)?;
     Ok(res
         .into_iter()
         .map(|r| {
@@ -487,7 +502,12 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
                 .execute(&mut *tx)
                 .await
                 .map_err(|e| DBError::CannotUpdateGlobalPermissions(e, user.name.to_owned()))?;
-                trace!("User {} Firstname set to: {}, Surname set to: {}", user.name, user.firstname, user.surname);
+                trace!(
+                    "User {} Firstname set to: {:?}, Surname set to: {:?}",
+                    user.name,
+                    user.firstname,
+                    user.surname
+                );
             }
         };
     }
@@ -496,6 +516,14 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
         .await
         .map_err(DBError::CannotCommitTransaction)?;
     Ok(())
+}
+
+pub(crate) async fn get_persons_with_similar_name(
+    pool: PgPool,
+    name_like: &str,
+) -> Result<Vec<Person<HasID>>, DBError> {
+    todo!()
+    //
 }
 
 #[cfg(test)]
@@ -541,7 +569,13 @@ mod test {
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_add_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
-        let adam = Person::new(1, "Adam".to_owned(), UserPermission::Admin, "Adam".to_owned(), "Abrahamovitch".to_owned());
+        let adam = Person::new(
+            1,
+            "Adam".to_owned(),
+            UserPermission::Admin,
+            "Adam".to_owned(),
+            "Abrahamovitch".to_owned(),
+        );
         let persons = vec![(&adam, &UserPermission::User)];
         add_members(pool.clone(), project_id, &persons).await?;
 
@@ -553,7 +587,13 @@ mod test {
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_remove_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
-        let adam = Person::new(1, "Adam".to_owned(), UserPermission::Admin, "Adam".to_owned(), "Abrahamovitch".to_owned());
+        let adam = Person::new(
+            1,
+            "Adam".to_owned(),
+            UserPermission::Admin,
+            "Adam".to_owned(),
+            "Abrahamovitch".to_owned(),
+        );
         let persons = vec![&adam];
         remove_members(pool.clone(), project_id, &persons).await?;
 
@@ -565,9 +605,27 @@ mod test {
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_update_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
-        let david = Person::<NoID>::new((), "David".to_owned(), UserPermission::Admin, "David".to_owned(), "Descartes".to_owned());
-        let hanna = Person::<NoID>::new((), "Hanna".to_owned(), UserPermission::User, "Hanna".to_owned(), "Herakleia".to_owned());
-        let samuel = Person::<NoID>::new((), "Samuel".to_owned(), UserPermission::User, "Samuel".to_owned(), "Shmuelov".to_owned());
+        let david = Person::<NoID>::new(
+            (),
+            "David".to_owned(),
+            UserPermission::Admin,
+            "David".to_owned(),
+            "Descartes".to_owned(),
+        );
+        let hanna = Person::<NoID>::new(
+            (),
+            "Hanna".to_owned(),
+            UserPermission::User,
+            "Hanna".to_owned(),
+            "Herakleia".to_owned(),
+        );
+        let samuel = Person::<NoID>::new(
+            (),
+            "Samuel".to_owned(),
+            UserPermission::User,
+            "Samuel".to_owned(),
+            "Shmuelov".to_owned(),
+        );
 
         let david = add_person(pool.clone(), david).await?;
         let hanna = add_person(pool.clone(), hanna).await?;
@@ -588,9 +646,27 @@ mod test {
 
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_update_users(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
-        let david = Person::<NoID>::new((), "David".to_owned(), UserPermission::Admin, "David".to_owned(), "Descartes".to_owned());
-        let hanna = Person::<NoID>::new((), "Hanna".to_owned(), UserPermission::User, "Hanna".to_owned(), "Herakleia".to_owned());
-        let samuel = Person::<NoID>::new((), "Samuel".to_owned(), UserPermission::User, "Samuel".to_owned(), "Shmuelov".to_owned());
+        let david = Person::<NoID>::new(
+            (),
+            "David".to_owned(),
+            UserPermission::Admin,
+            "David".to_owned(),
+            "Descartes".to_owned(),
+        );
+        let hanna = Person::<NoID>::new(
+            (),
+            "Hanna".to_owned(),
+            UserPermission::User,
+            "Hanna".to_owned(),
+            "Herakleia".to_owned(),
+        );
+        let samuel = Person::<NoID>::new(
+            (),
+            "Samuel".to_owned(),
+            UserPermission::User,
+            "Samuel".to_owned(),
+            "Shmuelov".to_owned(),
+        );
 
         update_users(pool.clone(), vec![david, hanna, samuel]).await?;
         let persons = get_all_persons(pool.clone()).await?;

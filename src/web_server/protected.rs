@@ -2,11 +2,20 @@ use std::sync::Arc;
 
 use askama_axum::IntoResponse;
 /// The routes protected by a login
-use axum::{http::StatusCode, routing::{get, post}, Extension, Router};
+use axum::{
+    http::StatusCode,
+    routing::{get, post},
+    Extension, Router,
+};
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::{config::Config, db::get_person, types::{HasID, Person}, web_server::InternalServerErrorTemplate};
+use crate::{
+    config::Config,
+    db::get_person,
+    types::{HasID, Person},
+    web_server::InternalServerErrorTemplate,
+};
 
 use super::login::AuthSession;
 
@@ -21,16 +30,30 @@ pub(crate) fn create_protected_router() -> Router {
     // we want posts to be in their own /api subdir instead of web
     Router::new()
         .route("/", get(self::get::root))
-        .route("/web/project/new", get(self::get::project_new_template).post(self::post::project_new))
-        .route("/web/project/:projectid/header_only", get(self::get::project_header_only))
-        .route("/web/project/:projectid/with_users", get(self::get::project_with_users))
-        .route("/web/project/:projectid/new_member", get(self::get::project_new_member_template).post(self::post::project_new_member))
+        .route(
+            "/web/project/new",
+            get(self::get::project_new_template).post(self::post::project_new),
+        )
+        .route(
+            "/web/project/:projectid/header_only",
+            get(self::get::project_header_only),
+        )
+        .route(
+            "/web/project/:projectid/with_users",
+            get(self::get::project_with_users),
+        )
+        .route(
+            "/web/project/:projectid/new_member",
+            get(self::get::project_new_member_template).post(self::post::project_new_member),
+        )
         .route("/web/search_user", post(self::post::search_user_results))
 }
 
-
 /// Get the user (as present in db) from the auth session, creating relevant Server Error returns
-async fn get_user_from_session(auth_session: AuthSession, config: Arc<Config>) -> Result<Person<HasID>, impl IntoResponse> {
+async fn get_user_from_session(
+    auth_session: AuthSession,
+    config: Arc<Config>,
+) -> Result<Person<HasID>, impl IntoResponse> {
     let user = if let Some(x) = auth_session.user {
         x
     } else {
@@ -54,7 +77,7 @@ async fn get_user_from_session(auth_session: AuthSession, config: Arc<Config>) -
                 InternalServerErrorTemplate { error_uuid },
             )
                 .into_response());
-        },
+        }
         Err(e) => {
             let error_uuid = Uuid::new_v4();
             warn!("Sending internal Server error because I cannot get a user by name: {e}. {error_uuid}");
@@ -69,7 +92,9 @@ async fn get_user_from_session(auth_session: AuthSession, config: Arc<Config>) -
 
 pub(super) mod get {
     use crate::{
-        db::{get_person, get_project, get_projects}, types::{HasID, Project, UserPermission}, web_server::{login::AuthSession, InternalServerErrorTemplate}
+        db::{get_person, get_project, get_projects},
+        types::{HasID, Project, UserPermission},
+        web_server::{login::AuthSession, InternalServerErrorTemplate},
     };
 
     use super::*;
@@ -83,7 +108,7 @@ pub(super) mod get {
     use crate::config::Config;
 
     #[derive(askama_axum::Template)]
-    #[template(path = "landing/complete.html", escape="none")]
+    #[template(path = "landing/complete.html", escape = "none")]
     struct LandingAsUser {
         username: String,
         projects: Vec<Project<HasID>>,
@@ -92,7 +117,7 @@ pub(super) mod get {
 
     #[derive(askama_axum::Template)]
     #[template(path = "landing/not_yet_synced.html")]
-    struct LandingNotYetSynced{
+    struct LandingNotYetSynced {
         username: String,
         retry_after: u32,
     }
@@ -101,7 +126,7 @@ pub(super) mod get {
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
     ) -> impl IntoResponse {
-       let user = if let Some(x) = auth_session.user {
+        let user = if let Some(x) = auth_session.user {
             x
         } else {
             let error_uuid = Uuid::new_v4();
@@ -111,7 +136,7 @@ pub(super) mod get {
                 InternalServerErrorTemplate { error_uuid },
             )
                 .into_response();
-       };
+        };
 
         // get projects
         let projects = match get_projects(config.pg_pool.clone()).await {
@@ -139,14 +164,12 @@ pub(super) mod get {
             }
         };
         match user_obj {
-            Some(person) => {
-                LandingAsUser {
-                    username: person.name,
-                    projects,
-                    permission: person.global_permission,
-                }
-                .into_response()
+            Some(person) => LandingAsUser {
+                username: person.name,
+                projects,
+                permission: person.global_permission,
             }
+            .into_response(),
             // user exists in LDAP but does not yet exist in DB.
             // Tell the user to come back in the right amount of time.
             None => {
@@ -160,17 +183,13 @@ pub(super) mod get {
         }
     }
 
-
     #[derive(askama_axum::Template, Debug)]
     #[template(path = "project/new.html")]
-    struct NewProject {
-    }
+    struct NewProject {}
 
     /// return the html form for adding a new project
-    pub(super) async fn project_new_template(
-    ) -> impl IntoResponse {
-        NewProject {}
-         .into_response()
+    pub(super) async fn project_new_template() -> impl IntoResponse {
+        NewProject {}.into_response()
     }
 
     pub(super) async fn project_header_only(
@@ -235,22 +254,18 @@ pub(super) mod get {
         };
         // find out whether the user is an admin of this group
         let permission = match user.global_permission {
-            UserPermission::Admin => {
-                UserPermission::Admin
-            }
-            UserPermission::User => {
-                match project.local_permission_for_user(user) {
-                    Some(x) => x,
-                    None => UserPermission::User,
-                }
-            }
+            UserPermission::Admin => UserPermission::Admin,
+            UserPermission::User => match project.local_permission_for_user(user) {
+                Some(x) => x,
+                None => UserPermission::User,
+            },
         };
         // template it with header_only
         project.display_with_users(permission).into_response()
     }
 
     #[derive(askama_axum::Template)]
-    #[template(path="project/new_member.html")]
+    #[template(path = "project/new_member.html")]
     pub(super) struct ProjectNewMemberTemplate {
         projectid: i32,
     }
@@ -258,10 +273,8 @@ pub(super) mod get {
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
         Path(projectid): Path<i32>,
-        ) -> impl IntoResponse {
-        ProjectNewMemberTemplate {
-            projectid,
-        }.into_response()
+    ) -> impl IntoResponse {
+        ProjectNewMemberTemplate { projectid }.into_response()
     }
 }
 
@@ -274,7 +287,12 @@ pub(super) mod post {
     use tracing::{trace, warn, Level};
     use uuid::Uuid;
 
-    use crate::{config::Config, db::{add_project, get_person}, types::{HasID, NoID, Project, UserPermission}, web_server::{login::AuthSession, InternalServerErrorTemplate}};
+    use crate::{
+        config::Config,
+        db::{add_project, get_person},
+        types::{HasID, NoID, Project, UserPermission},
+        web_server::{login::AuthSession, InternalServerErrorTemplate},
+    };
 
     #[derive(Deserialize, Debug)]
     pub(super) struct NewProjectData {
@@ -310,7 +328,7 @@ pub(super) mod post {
                     InternalServerErrorTemplate { error_uuid },
                 )
                     .into_response();
-            },
+            }
             Err(e) => {
                 let error_uuid = Uuid::new_v4();
                 warn!("Sending internal Server error because I cannot get a user by name: {e}. {error_uuid}");
@@ -323,7 +341,10 @@ pub(super) mod post {
         };
 
         if user_obj.global_permission == UserPermission::User {
-            warn!("User {} tried to create a project, but is not a global admin.", user.username);
+            warn!(
+                "User {} tried to create a project, but is not a global admin.",
+                user.username
+            );
             return StatusCode::UNAUTHORIZED.into_response();
         };
 
@@ -355,7 +376,7 @@ pub(super) mod post {
         Extension(config): Extension<Arc<Config>>,
         Path(projectid): Path<i32>,
         Form(form): Form<ProjectNewMemberFormData>,
-        ) -> impl IntoResponse {
+    ) -> impl IntoResponse {
         // check that the caller has privileges to do this
         // check that the user exists
         // check that the project exists
@@ -370,7 +391,7 @@ pub(super) mod post {
         username: String,
     }
     #[derive(askama_axum::Template)]
-    #[template(path="search/user_results.html")]
+    #[template(path = "search/user_results.html")]
     pub(super) struct UserSearchResultsTemplate {
         results: Vec<(String, String)>,
     }
@@ -380,10 +401,8 @@ pub(super) mod post {
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
         Form(form): Form<UserSearchFormData>,
-        ) -> impl IntoResponse {
+    ) -> impl IntoResponse {
         // get users whith name similar to the form.username
-        UserSearchResultsTemplate {
-            results: vec![],
-        }.into_response()
+        UserSearchResultsTemplate { results: vec![] }.into_response()
     }
 }

@@ -248,24 +248,26 @@ impl LDAPBackend {
                 return Err(LDAPError::NotExactlyOneOfAttribute("uid".to_owned()));
             };
 
-            let firstnames = object
+            let firstname = object
                 .attrs
                 .get("givenName")
-                .ok_or(LDAPError::AttributeMissing("givenName".to_owned()))?;
-            let Some(firstname) = firstnames.iter().next() else {
-                return Err(LDAPError::NotExactlyOneOfAttribute("givenName".to_owned()));
-            };
-            let surnames = object
+                .and_then(|v| v.iter().next())
+                .map(|gn| gn.to_owned());
+            let surname = object
                 .attrs
                 .get("sn")
-                .ok_or(LDAPError::AttributeMissing("sn".to_owned()))?;
-            let Some(surname) = surnames.iter().next() else {
-                return Err(LDAPError::NotExactlyOneOfAttribute("sn".to_owned()));
-            };
+                .and_then(|v| v.iter().next())
+                .map(|sn| sn.to_owned());
 
             // check if this user has write access
             let permission = self.permission(our_handle.clone(), uid).await?;
-            res.push(Person::<NoID>::new((), uid.clone(), permission, surname.to_owned(), firstname.to_owned()));
+            res.push(Person::<NoID>::new(
+                (),
+                uid.clone(),
+                permission,
+                surname,
+                firstname,
+            ));
         }
         Ok(res)
     }
