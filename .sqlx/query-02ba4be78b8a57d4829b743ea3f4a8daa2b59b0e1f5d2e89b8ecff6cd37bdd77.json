@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, Person.PersonFirstname, Person.PersonSurname, Person.IsGlobalAdmin, PersonProjectMap.IsProjectAdmin\n            FROM Project\n        INNER JOIN PersonProjectMap\n            ON Project.ProjectID = PersonProjectMap.ProjectID\n        INNER JOIN Person\n            ON PersonProjectMap.PersonID = Person.PersonID\n        WHERE\n            Project.ProjectID = $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "projectid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "projectname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "personid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "personname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "personfirstname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "personsurname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "isglobaladmin",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "isprojectadmin",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "02ba4be78b8a57d4829b743ea3f4a8daa2b59b0e1f5d2e89b8ecff6cd37bdd77"
+}

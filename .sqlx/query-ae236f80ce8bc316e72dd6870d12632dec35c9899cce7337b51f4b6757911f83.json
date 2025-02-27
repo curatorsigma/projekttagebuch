@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ProjectID, ProjectName FROM Project;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "projectid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "projectname",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ae236f80ce8bc316e72dd6870d12632dec35c9899cce7337b51f4b6757911f83"
+}

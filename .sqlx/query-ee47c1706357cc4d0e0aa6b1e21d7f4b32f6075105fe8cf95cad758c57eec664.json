@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO Person (PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin) VALUES ($1, $2, $3, $4) RETURNING PersonID",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "personid",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ee47c1706357cc4d0e0aa6b1e21d7f4b32f6075105fe8cf95cad758c57eec664"
+}

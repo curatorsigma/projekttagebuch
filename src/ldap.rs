@@ -231,7 +231,7 @@ impl LDAPBackend {
                 &self.base_dn,
                 Scope::OneLevel,
                 &complete_filter,
-                vec!["uid"],
+                vec!["uid", "givenName", "sn"],
             )
             .await
             .map_err(LDAPError::CannotSearch)?
@@ -247,9 +247,25 @@ impl LDAPBackend {
             let Some(uid) = uids.iter().next() else {
                 return Err(LDAPError::NotExactlyOneOfAttribute("uid".to_owned()));
             };
+
+            let firstnames = object
+                .attrs
+                .get("givenName")
+                .ok_or(LDAPError::AttributeMissing("givenName".to_owned()))?;
+            let Some(firstname) = firstnames.iter().next() else {
+                return Err(LDAPError::NotExactlyOneOfAttribute("givenName".to_owned()));
+            };
+            let surnames = object
+                .attrs
+                .get("sn")
+                .ok_or(LDAPError::AttributeMissing("sn".to_owned()))?;
+            let Some(surname) = surnames.iter().next() else {
+                return Err(LDAPError::NotExactlyOneOfAttribute("sn".to_owned()));
+            };
+
             // check if this user has write access
             let permission = self.permission(our_handle.clone(), uid).await?;
-            res.push(Person::<NoID>::new((), uid.clone(), permission));
+            res.push(Person::<NoID>::new((), uid.clone(), permission, surname.to_owned(), firstname.to_owned()));
         }
         Ok(res)
     }

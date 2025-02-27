@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE Person SET IsGlobalAdmin = $1 WHERE PersonName = $2;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3532937e58ed8403884faf333f289ee600817af267c623d2d8ac805098963295"
+}

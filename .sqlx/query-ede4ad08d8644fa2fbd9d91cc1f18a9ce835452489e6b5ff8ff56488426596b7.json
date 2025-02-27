@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO Person (PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin) VALUES ($1, $2, $3, $4);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ede4ad08d8644fa2fbd9d91cc1f18a9ce835452489e6b5ff8ff56488426596b7"
+}

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT PersonID, PersonFirstname, PersonSurname, IsGlobalAdmin from Person WHERE PersonName LIKE $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "personid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "personfirstname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "personsurname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "isglobaladmin",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8254b48c59fb0d48d1d309bc49bfe71e3b1f80200622e7259eeddfc747637aaa"
+}

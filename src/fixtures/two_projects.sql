@@ -1,8 +1,8 @@
 --- insert three users and two projects
 
-INSERT INTO Person (PersonName) VALUES ('Adam');
-INSERT INTO Person (PersonName) VALUES ('Beth');
-INSERT INTO Person (PersonName) VALUES ('Gamaliel');
+INSERT INTO Person (PersonName, PersonSurname, PersonFirstname) VALUES ('Adam', 'Abramovich', 'Adam');
+INSERT INTO Person (PersonName, PersonSurname, PersonFirstname) VALUES ('Beth', 'Beliar', 'Beth');
+INSERT INTO Person (PersonName, PersonSurname, PersonFirstname) VALUES ('Gamaliel', 'Germof', 'Gamaliel');
 
 INSERT INTO Project (ProjectName) VALUES ('1Basil');
 INSERT INTO Project (ProjectName) VALUES ('2Basil');

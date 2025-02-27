@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO Project (ProjectName) VALUES ($1) RETURNING ProjectID;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "projectid",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7781f47e37267dae12012a6fb58945353e2152a5a91ec64b4e1cd8d8034fcd77"
+}

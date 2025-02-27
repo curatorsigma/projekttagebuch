@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM PersonProjectMap WHERE PersonID = $1 AND ProjectID = $2;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4fcfbf7c77bde9cdf55900424db7a36304901ca12ece472cd938614b369c4db2"
+}
