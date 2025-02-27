@@ -22,6 +22,7 @@ pub(crate) enum DBError {
     CannotUpdateGlobalPermissions(sqlx::Error, String),
     CannotUpdateFirstname(sqlx::Error, String),
     CannotUpdateSurname(sqlx::Error, String),
+    CannotSelectSimilarNames(sqlx::Error),
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
@@ -72,6 +73,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateSurname(x, y) => {
                 write!(f, "Cannot update surname for user {}: {}.", x, y)
+            }
+            Self::CannotSelectSimilarNames(x) => {
+                write!(f, "Cannot select similar names: {}.", x)
             }
             Self::ProjectDoesNotExist(x, y) => {
                 write!(f, "The project with id {x}, name {y} does not exist.")
@@ -546,8 +550,25 @@ pub(crate) async fn get_persons_with_similar_name(
     pool: PgPool,
     name_like: &str,
 ) -> Result<Vec<Person<HasID>>, DBError> {
-    todo!()
-    //
+    Ok(sqlx::query!(
+        "SELECT PersonID, PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin, similarity($1, concat(PersonSurname, ' ', PersonFirstname))
+        FROM Person
+        ORDER BY similarity DESC
+        LIMIT 5;",
+        name_like,
+        )
+    .fetch_all(&pool)
+    .await
+    .map_err(DBError::CannotSelectSimilarNames)?
+    .into_iter()
+    .map(|r| Person::new(
+                r.personid,
+                r.personname,
+                UserPermission::new_from_is_admin(r.isglobaladmin),
+                r.personsurname,
+                r.personfirstname,)
+        )
+    .collect::<Vec<_>>())
 }
 
 #[cfg(test)]

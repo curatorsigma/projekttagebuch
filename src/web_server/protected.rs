@@ -289,7 +289,7 @@ pub(super) mod post {
 
     use crate::{
         config::Config,
-        db::{add_project, get_person},
+        db::{add_project, get_person, get_persons_with_similar_name},
         types::{HasID, NoID, Project, UserPermission},
         web_server::{login::AuthSession, InternalServerErrorTemplate},
     };
@@ -403,6 +403,19 @@ pub(super) mod post {
         Form(form): Form<UserSearchFormData>,
     ) -> impl IntoResponse {
         // get users whith name similar to the form.username
-        UserSearchResultsTemplate { results: vec![] }.into_response()
+        let persons = match get_persons_with_similar_name(config.pg_pool.clone(), &form.username).await {
+            Ok(x) => x,
+            Err(e) => {
+            let error_uuid = Uuid::new_v4();
+            warn!("Sending internal server error because I cannot get persons with similar name: {e}. {error_uuid}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                InternalServerErrorTemplate { error_uuid },
+            )
+                .into_response();
+                }
+        };
+        let results = persons.into_iter().map(|p| (format!("{} {} ({})", p.firstname.unwrap_or("".to_owned()), p.surname.unwrap_or("".to_owned()), p.name), p.name)).collect();
+        UserSearchResultsTemplate { results, }.into_response()
     }
 }
