@@ -3,7 +3,7 @@
 CREATE TABLE Person (
 	PersonID INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 	PersonName TEXT UNIQUE NOT NULL,
-	PersonFirstname TEXT NOT NULL,
-	PersonSurname TEXT NOT NULL,
+	PersonFirstname TEXT,
+	PersonSurname TEXT,
 	IsGlobalAdmin BOOL NOT NULL DEFAULT FALSE
 );
