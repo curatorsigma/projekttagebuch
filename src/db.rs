@@ -1,7 +1,7 @@
 //! Low level Database primitives
 
 use sqlx::{PgPool, Row};
-use tracing::{info, trace};
+use tracing::{info, trace, warn};
 
 use crate::types::{HasID, NoID, Person, Project, UserPermission};
 
@@ -24,6 +24,7 @@ pub(crate) enum DBError {
     // DATA Errors
     ProjectDoesNotExist(i32, String),
     ProjectNotUnique(i32),
+    PPMapEntryHasNoCorrespondingProject(i32, i32),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -70,6 +71,9 @@ impl core::fmt::Display for DBError {
             Self::ProjectNotUnique(x) => {
                 write!(f, "The project with id {x} exists multiple times.")
             }
+            Self::PPMapEntryHasNoCorrespondingProject(person, project) => {
+                write!(f, "Person {person} is mapped to Project {project} but that project does not exist.")
+            }
         }
     }
 }
@@ -77,6 +81,22 @@ impl std::error::Error for DBError {}
 
 /// Get a list of projects
 pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+
+    // first get all projects (required if projects are empty)
+    let rows = sqlx::query!("SELECT ProjectID, ProjectName FROM Project;")
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(DBError::CannotSelectProjects)?;
+    let mut result = rows
+        .into_iter()
+        .map(|r| Project::new(r.projectid, r.projectname))
+        .collect::<Vec<Project<HasID>>>();
+
+    // Now get all users part of any projects
     let rows = sqlx::query!(
         "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, Person.IsGlobalAdmin, PersonProjectMap.IsProjectAdmin
             FROM Project
@@ -85,10 +105,10 @@ pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> 
         INNER JOIN Person
             ON PersonProjectMap.PersonID = Person.PersonID;"
     )
-        .fetch_all(&pool)
+        .fetch_all(&mut *tx)
         .await
         .map_err(DBError::CannotSelectProjects)?;
-    let mut result: Vec<Project<HasID>> = vec![];
+
     'row: for row in rows {
         let person = Person::new(
             row.personid,
@@ -106,13 +126,12 @@ pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> 
             };
         }
         // no existing project fit - create a new one
-        let mut project = Project::new(row.projectid, row.projectname);
-        project.add_member(
-            person,
-            UserPermission::new_from_is_admin(row.isprojectadmin),
-        );
-        result.push(project);
+        // This should not be possible because we have selected all projects in the same transaction
+        warn!("Found no project for a PersonProjectMap entry. Check DB data integrity!");
+        warn!("Person {}, Project {} is mapped but Project does not exist.", row.personid, row.projectid);
+        return Err(DBError::PPMapEntryHasNoCorrespondingProject(row.personid, row.projectid))
     }
+    // deliberately no transaction commit because we have not written anything in it
     Ok(result)
 }
 
@@ -459,6 +478,13 @@ mod test {
     async fn test_get_projects(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let projects = get_projects(pool).await.unwrap();
         assert_eq!(projects.len(), 2);
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("empty_project"))]
+    async fn test_get_projects_no_users(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
+        let projects = get_projects(pool).await.unwrap();
+        assert_eq!(projects.len(), 1);
         Ok(())
     }
 
