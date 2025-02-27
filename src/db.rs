@@ -20,6 +20,8 @@ pub(crate) enum DBError {
     CannotSelectPersonByExactName(sqlx::Error),
     CannotDeletePerson(sqlx::Error, String),
     CannotUpdateGlobalPermissions(sqlx::Error, String),
+    CannotUpdateFirstname(sqlx::Error, String),
+    CannotUpdateSurname(sqlx::Error, String),
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
@@ -64,6 +66,12 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateGlobalPermissions(x, y) => {
                 write!(f, "Cannot update global permissions for user {}: {}.", x, y)
+            }
+            Self::CannotUpdateFirstname(x, y) => {
+                write!(f, "Cannot update firstname for user {}: {}.", x, y)
+            }
+            Self::CannotUpdateSurname(x, y) => {
+                write!(f, "Cannot update surname for user {}: {}.", x, y)
             }
             Self::ProjectDoesNotExist(x, y) => {
                 write!(f, "The project with id {x}, name {y} does not exist.")
@@ -449,7 +457,7 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
     for user in users {
         // get user by name
         let person = sqlx::query!(
-            "SELECT PersonID, IsGlobalAdmin from Person WHERE PersonName LIKE $1;",
+            "SELECT PersonID, PersonSurname, PersonFirstname, IsGlobalAdmin from Person WHERE PersonName LIKE $1;",
             user.name,
         )
         .fetch_optional(&mut *tx)
@@ -492,22 +500,38 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
                         user.name, user.global_permission
                     );
                 };
-                // update name
-                sqlx::query!(
-                    "UPDATE Person SET PersonSurname = $1, PersonFirstname = $2 WHERE PersonName = $3;",
-                    user.surname,
-                    user.firstname,
-                    user.name,
-                )
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| DBError::CannotUpdateGlobalPermissions(e, user.name.to_owned()))?;
-                trace!(
-                    "User {} Firstname set to: {:?}, Surname set to: {:?}",
-                    user.name,
-                    user.firstname,
-                    user.surname
-                );
+                if row.personfirstname != user.firstname {
+                    // update name
+                    sqlx::query!(
+                        "UPDATE Person SET PersonFirstname = $1 WHERE PersonName = $2;",
+                        user.firstname,
+                        user.name,
+                    )
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| DBError::CannotUpdateFirstname(e, user.name.to_owned()))?;
+                    trace!(
+                        "User {} Firstname set to: {:?}",
+                        user.name,
+                        user.firstname,
+                    );
+                };
+                if row.personsurname != user.surname {
+                    // update name
+                    sqlx::query!(
+                        "UPDATE Person SET PersonSurname = $1 WHERE PersonName = $2;",
+                        user.surname,
+                        user.name,
+                    )
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| DBError::CannotUpdateSurname(e, user.name.to_owned()))?;
+                    trace!(
+                        "User {} Firstname set to: {:?}",
+                        user.name,
+                        user.firstname,
+                    );
+                };
             }
         };
     }
@@ -537,8 +561,8 @@ mod test {
             person_id: NoID::default(),
             name: "John Doe".to_owned(),
             global_permission: UserPermission::User,
-            firstname: "John".to_owned(),
-            surname: "Doe".to_owned(),
+            firstname: Some("John".to_owned()),
+            surname: Some("Doe".to_owned()),
         };
         add_person(pool, person).await.unwrap();
         Ok(())
@@ -573,8 +597,8 @@ mod test {
             1,
             "Adam".to_owned(),
             UserPermission::Admin,
-            "Adam".to_owned(),
-            "Abrahamovitch".to_owned(),
+            Some("Adam".to_owned()),
+            Some("Abrahamovitch".to_owned()),
         );
         let persons = vec![(&adam, &UserPermission::User)];
         add_members(pool.clone(), project_id, &persons).await?;
@@ -591,8 +615,8 @@ mod test {
             1,
             "Adam".to_owned(),
             UserPermission::Admin,
-            "Adam".to_owned(),
-            "Abrahamovitch".to_owned(),
+            Some("Adam".to_owned()),
+            Some("Abrahamovitch".to_owned()),
         );
         let persons = vec![&adam];
         remove_members(pool.clone(), project_id, &persons).await?;
@@ -609,22 +633,22 @@ mod test {
             (),
             "David".to_owned(),
             UserPermission::Admin,
-            "David".to_owned(),
-            "Descartes".to_owned(),
+            Some("David".to_owned()),
+            Some("Descartes".to_owned()),
         );
         let hanna = Person::<NoID>::new(
             (),
             "Hanna".to_owned(),
             UserPermission::User,
-            "Hanna".to_owned(),
-            "Herakleia".to_owned(),
+            Some("Hanna".to_owned()),
+            Some("Herakleia".to_owned()),
         );
         let samuel = Person::<NoID>::new(
             (),
             "Samuel".to_owned(),
             UserPermission::User,
-            "Samuel".to_owned(),
-            "Shmuelov".to_owned(),
+            Some("Samuel".to_owned()),
+            Some("Shmuelov".to_owned()),
         );
 
         let david = add_person(pool.clone(), david).await?;
@@ -650,22 +674,22 @@ mod test {
             (),
             "David".to_owned(),
             UserPermission::Admin,
-            "David".to_owned(),
-            "Descartes".to_owned(),
+            Some("David".to_owned()),
+            Some("Descartes".to_owned()),
         );
         let hanna = Person::<NoID>::new(
             (),
             "Hanna".to_owned(),
             UserPermission::User,
-            "Hanna".to_owned(),
-            "Herakleia".to_owned(),
+            Some("Hanna".to_owned()),
+            Some("Herakleia".to_owned()),
         );
         let samuel = Person::<NoID>::new(
             (),
             "Samuel".to_owned(),
             UserPermission::User,
-            "Samuel".to_owned(),
-            "Shmuelov".to_owned(),
+            Some("Samuel".to_owned()),
+            Some("Shmuelov".to_owned()),
         );
 
         update_users(pool.clone(), vec![david, hanna, samuel]).await?;
