@@ -1,0 +1,9 @@
+{% for res in results %}
+<div
+	class="single_search_result"
+	_="on click set { value: '{{ res.1 }}' } on the previous .user-search-input-field  then send endsearch to the closest .user-search-result"> 
+	<p>
+		{{ res.0|safe }}
+	</p>
+</div>
+{% endfor %}

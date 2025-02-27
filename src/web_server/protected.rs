@@ -25,6 +25,7 @@ pub(crate) fn create_protected_router() -> Router {
         .route("/web/project/:projectid/header_only", get(self::get::project_header_only))
         .route("/web/project/:projectid/with_users", get(self::get::project_with_users))
         .route("/web/project/:projectid/new_member", get(self::get::project_new_member_template).post(self::post::project_new_member))
+        .route("/web/search_user", post(self::post::search_user_results))
 }
 
 
@@ -362,5 +363,27 @@ pub(super) mod post {
         // return the line for this user in the user list (the template should put the response at
         // the end of the user list)
         todo!()
+    }
+
+    #[derive(Deserialize, Debug)]
+    pub(super) struct UserSearchFormData {
+        username: String,
+    }
+    #[derive(askama_axum::Template)]
+    #[template(path="search/user_results.html")]
+    pub(super) struct UserSearchResultsTemplate {
+        results: Vec<(String, String)>,
+    }
+
+    #[tracing::instrument(level=Level::TRACE, skip(auth_session, config))]
+    pub(super) async fn search_user_results(
+        auth_session: AuthSession,
+        Extension(config): Extension<Arc<Config>>,
+        Form(form): Form<UserSearchFormData>,
+        ) -> impl IntoResponse {
+        // get users whith name similar to the form.username
+        UserSearchResultsTemplate {
+            results: vec![],
+        }.into_response()
     }
 }

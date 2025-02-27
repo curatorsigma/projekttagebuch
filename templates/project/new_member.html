@@ -1,6 +1,17 @@
 <div>
+<div class="">
+	<input class="user-search-input-field"
+		name="username"
+		type="search"
+		value=""
+		hx-post="/web/search_user"
+		hx-trigger="input changed delay:500ms, search"
+		hx-target="next .user-search-result"
+		hx-swap="innerHTML"></input>
+	<div class="user-search-result" _="on endsearch set my innerHTML to ''"></div>
+</div>
+
 TODO:
-Search-bar with search for users
 Plus-button to save and delete this element
 Cancl-button to delete this entire element
 </div>
