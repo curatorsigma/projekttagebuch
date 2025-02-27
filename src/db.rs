@@ -169,7 +169,30 @@ pub(crate) async fn add_project(pool: PgPool, project: Project<NoID>) -> Result<
 }
 
 /// Get a project from known ID
-async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DBError> {
+pub(crate) async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DBError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+
+    // first get all projects (required if projects are empty)
+    let rows = sqlx::query!(
+            "SELECT ProjectID, ProjectName FROM Project WHERE ProjectID = $1;",
+            id,
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(DBError::CannotSelectProjects)?;
+    let mut project = match rows {
+        None => {
+            trace!("Project {id} does not exist.");
+            return Ok(None);
+        }
+        Some(x) => {
+            Project::<HasID>::new(x.projectid, x.projectname)
+        }
+    };
+
     let rows = sqlx::query!(
         "SELECT Project.ProjectID, Project.ProjectName, Person.PersonID, Person.PersonName, Person.IsGlobalAdmin, PersonProjectMap.IsProjectAdmin
             FROM Project
@@ -184,7 +207,6 @@ async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DB
         .fetch_all(&pool)
         .await
         .map_err(DBError::CannotSelectProjects)?;
-    let mut result: Vec<Project<HasID>> = vec![];
     'row: for row in rows {
         let person = Person::new(
             row.personid,
@@ -192,28 +214,20 @@ async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<HasID>>, DB
             UserPermission::new_from_is_admin(row.isglobaladmin),
         );
 
-        for project in result.iter_mut() {
-            if project.project_id() == row.projectid {
-                project.add_member(
-                    person,
-                    UserPermission::new_from_is_admin(row.isprojectadmin),
-                );
-                continue 'row;
-            };
-        }
+        if project.project_id() == row.projectid {
+            project.add_member(
+                person,
+                UserPermission::new_from_is_admin(row.isprojectadmin),
+            );
+            continue 'row;
+        };
         // no existing project fit - create a new one
-        let mut project = Project::new(row.projectid, row.projectname);
-        project.add_member(
-            person,
-            UserPermission::new_from_is_admin(row.isprojectadmin),
-        );
-        result.push(project);
-    }
-    match result.len() {
-        0 => Ok(None),
-        1 => Ok(result.pop()),
-        _ => Err(DBError::ProjectNotUnique(id)),
-    }
+        // This should not be possible because we have selected all projects in the same transaction
+        warn!("Found no project for a PersonProjectMap entry. Check DB data integrity!");
+        warn!("Person {}, Project {} is mapped but Project does not exist.", row.personid, row.projectid);
+        return Err(DBError::PPMapEntryHasNoCorrespondingProject(row.personid, row.projectid))
+    };
+    Ok(Some(project))
 }
 
 /// remove the given persons from the given project

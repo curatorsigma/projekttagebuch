@@ -45,16 +45,10 @@ struct ProjectDisplayHeaderOnly<'a> {
 #[template(path="project/with_users.html")]
 struct ProjectDisplayWithUsers<'a> {
     project: &'a Project<HasID>,
+    permission: UserPermission,
 }
 
 impl Project<HasID> {
-    pub(crate) fn to_template(&self, permission: &UserPermission) -> ProjectTemplate {
-        ProjectTemplate {
-            project: self,
-            permission: *permission,
-        }
-    }
-
     pub(crate) fn project_id(&self) -> i32 {
         self.project_id.id
     }
@@ -69,8 +63,22 @@ impl Project<HasID> {
     }
 
     /// Render self, displaying only the header
-    pub(crate) fn display_with_users(&self) -> String {
-        ProjectDisplayWithUsers { project: self, }.render().expect("static template")
+    pub(crate) fn display_with_users(&self, permission: UserPermission) -> String {
+        ProjectDisplayWithUsers { project: self, permission, }.render().expect("static template")
+    }
+
+    /// None, when the user is not in the group.
+    /// Some(Admin) when they have admin privileges for this group
+    /// Some(User) when they have normal privileges for this group
+    ///
+    /// IGNORES global permissions for the user
+    pub(crate) fn local_permission_for_user(&self, person: Person<HasID>) -> Option<UserPermission> {
+        for (user, perm) in self.members.iter() {
+            if user.person_id == person.person_id {
+                return Some(*perm);
+            }
+        }
+        None
     }
 }
 

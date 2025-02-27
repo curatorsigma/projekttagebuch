@@ -43,7 +43,7 @@
     <div id="phantom-new-project" class="flex justify-evenly">
     </div>
 
-    <div id="project-list" class="grid w-screen grid-cols-1 place-items-center md:grid-cols-2 xl:grid-cols-3 mb-12">
+    <div id="project-list" class="items-start grid w-screen grid-cols-1 place-items-center md:grid-cols-2 xl:grid-cols-3 mb-12">
       {% for project in projects %}
       {{ project.display_header_only() }}
       {% endfor %}

@@ -15,7 +15,7 @@
   </div>
   <div
 	  class="flex justify-around border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 text-xl hover:rounded-md hover:bg-gray-600 dark:hover:bg-neutral-700"
-	  hx-get="/web/project/{{project.project_id()}}/with_users"
+	  hx-get="/web/project/{{project.project_id()}}/header_only"
 	  hx-target="#project-{{project.project_id()}}"
 	  hx-swap="outerHTML"
 	  hx-target-error="#error_display">
@@ -62,14 +62,21 @@
   </div>
 				{% endfor %}
 
-  <div id="add-a-user" class="flex justify-evenly">
+  {% if permission == UserPermission::Admin %}
+  <div id="add-a-user-{{project.project_id()}}" class="flex justify-evenly">
     <div class="relative flex justify-center">
-      <button class="m-1 rounded-lg p-2 text-xl text-lime-600 hover:text-lime-400 dark:text-green-500 dark:hover:text-green-300 hover:rounded-md hover:bg-neutral-500 dark:bg-gray-900 dark:hover:bg-neutral-700">
+      <button
+	class="m-1 rounded-lg p-2 text-xl text-lime-600 hover:text-lime-400 dark:text-green-500 dark:hover:text-green-300 hover:rounded-md hover:bg-neutral-500 dark:bg-gray-900 dark:hover:bg-neutral-700"
+	hx-get="/web/project/{{project.project_id()}}/new_member"
+	hx-target="#add-a-user-{{project.project_id()}}"
+	hx-swap="beforebegin"
+	hx-target-error="#error_display">
 	<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
 	  <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
 	</svg>
       </button>
     </div>
   </div>
+  {% endif %}
 </div>
 </div>
