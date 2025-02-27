@@ -33,7 +33,7 @@ pub(super) mod get {
     use crate::config::Config;
 
     #[derive(Template)]
-    #[template(path = "landing/complete.html")]
+    #[template(path = "landing/complete.html", escape="none")]
     struct LandingAsUser {
         username: String,
         projects: Vec<Project<HasID>>,
@@ -148,7 +148,7 @@ pub(super) mod post {
         name: String,
     }
 
-    #[tracing::instrument(level=Level::TRACE)]
+    #[tracing::instrument(level=Level::TRACE, skip(auth_session, config))]
     pub(super) async fn project_new(
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
