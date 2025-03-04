@@ -1,8 +1,21 @@
 //! The [`Person`] Type used throughout
 
+use core::borrow::Borrow;
+
+use askama::Template;
+
 use super::{HasID, UserPermission, DBID};
 
-#[derive(Debug, PartialEq, Eq)]
+
+// todo have "view-perm" and person-status in this project separately
+#[derive(askama::Template)]
+#[template(path = "user/show.html")]
+struct UserTemplate<'a> {
+    person: &'a Person<HasID>,
+    perm: UserPermission,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Person<I: DBID> {
     pub(crate) person_id: I,
     pub(crate) name: String,
@@ -44,5 +57,13 @@ where
 impl Person<HasID> {
     pub fn person_id(&self) -> i32 {
         self.person_id.id
+    }
+
+    /// template the user-line for this user
+    pub fn display(&self, perm: UserPermission) -> String {
+        UserTemplate {
+            person: self,
+            perm,
+        }.render().expect("static template")
     }
 }

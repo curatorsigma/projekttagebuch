@@ -35,15 +35,15 @@ pub(crate) fn create_protected_router() -> Router {
             get(self::get::project_new_template).post(self::post::project_new),
         )
         .route(
-            "/web/project/:projectid/header_only",
+            "/web/project/:project_id/header_only",
             get(self::get::project_header_only),
         )
         .route(
-            "/web/project/:projectid/with_users",
+            "/web/project/:project_id/with_users",
             get(self::get::project_with_users),
         )
         .route(
-            "/web/project/:projectid/new_member",
+            "/web/project/:project_id/new_member",
             get(self::get::project_new_member_template).post(self::post::project_new_member),
         )
         .route("/web/search_user", post(self::post::search_user_results))
@@ -195,7 +195,7 @@ pub(super) mod get {
     pub(super) async fn project_header_only(
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
-        Path(projectid): Path<i32>,
+        Path(project_id): Path<i32>,
     ) -> impl IntoResponse {
         let _user = match get_user_from_session(auth_session, config.clone()).await {
             Ok(x) => x,
@@ -204,15 +204,15 @@ pub(super) mod get {
             }
         };
 
-        let project = match get_project(config.pg_pool.clone(), projectid).await {
+        let project = match get_project(config.pg_pool.clone(), project_id).await {
             Ok(Some(x)) => x,
             Ok(None) => {
-                info!("Project {projectid} was requested but does not exist.");
+                info!("Project {project_id} was requested but does not exist.");
                 return (StatusCode::NOT_FOUND).into_response();
             }
             Err(e) => {
                 let error_uuid = Uuid::new_v4();
-                warn!("Sending internal server error because I cannot get project {projectid} by id: {e}. {error_uuid}");
+                warn!("Sending internal server error because I cannot get project {project_id} by id: {e}. {error_uuid}");
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     InternalServerErrorTemplate { error_uuid },
@@ -227,7 +227,7 @@ pub(super) mod get {
     pub(super) async fn project_with_users(
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
-        Path(projectid): Path<i32>,
+        Path(project_id): Path<i32>,
     ) -> impl IntoResponse {
         let user = match get_user_from_session(auth_session, config.clone()).await {
             Ok(x) => x,
@@ -236,15 +236,15 @@ pub(super) mod get {
             }
         };
 
-        let project = match get_project(config.pg_pool.clone(), projectid).await {
+        let project = match get_project(config.pg_pool.clone(), project_id).await {
             Ok(Some(x)) => x,
             Ok(None) => {
-                info!("Project {projectid} was requested but does not exist.");
+                info!("Project {project_id} was requested but does not exist.");
                 return (StatusCode::NOT_FOUND).into_response();
             }
             Err(e) => {
                 let error_uuid = Uuid::new_v4();
-                warn!("Sending internal server error because I cannot get project {projectid} by id: {e}. {error_uuid}");
+                warn!("Sending internal server error because I cannot get project {project_id} by id: {e}. {error_uuid}");
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     InternalServerErrorTemplate { error_uuid },
@@ -255,7 +255,7 @@ pub(super) mod get {
         // find out whether the user is an admin of this group
         let permission = match user.global_permission {
             UserPermission::Admin => UserPermission::Admin,
-            UserPermission::User => match project.local_permission_for_user(user) {
+            UserPermission::User => match project.local_permission_for_user(&user) {
                 Some(x) => x,
                 None => UserPermission::User,
             },
@@ -267,14 +267,14 @@ pub(super) mod get {
     #[derive(askama_axum::Template)]
     #[template(path = "project/new_member.html")]
     pub(super) struct ProjectNewMemberTemplate {
-        projectid: i32,
+        project_id: i32,
     }
     pub(super) async fn project_new_member_template(
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
-        Path(projectid): Path<i32>,
+        Path(project_id): Path<i32>,
     ) -> impl IntoResponse {
-        ProjectNewMemberTemplate { projectid }.into_response()
+        ProjectNewMemberTemplate { project_id }.into_response()
     }
 }
 
@@ -284,14 +284,14 @@ pub(super) mod post {
     use askama_axum::IntoResponse;
     use axum::{extract::Path, http::StatusCode, Extension, Form};
     use serde::Deserialize;
-    use tracing::{trace, warn, Level};
+    use tracing::{error, info, trace, warn, Level};
     use uuid::Uuid;
 
     use crate::{
         config::Config,
-        db::{add_project, get_person, get_persons_with_similar_name},
+        db::{add_project, get_person, get_persons_with_similar_name, get_project, update_project_members},
         types::{HasID, NoID, Project, UserPermission},
-        web_server::{login::AuthSession, InternalServerErrorTemplate},
+        web_server::{login::AuthSession, protected::get_user_from_session, InternalServerErrorTemplate},
     };
 
     #[derive(Deserialize, Debug)]
@@ -369,21 +369,101 @@ pub(super) mod post {
 
     #[derive(Deserialize)]
     pub(super) struct ProjectNewMemberFormData {
-        personid: i32,
+        username: String,
     }
     pub(super) async fn project_new_member(
         auth_session: AuthSession,
         Extension(config): Extension<Arc<Config>>,
-        Path(projectid): Path<i32>,
+        Path(project_id): Path<i32>,
         Form(form): Form<ProjectNewMemberFormData>,
     ) -> impl IntoResponse {
         // check that the caller has privileges to do this
         // check that the user exists
-        // check that the project exists
         // update DB
         // return the line for this user in the user list (the template should put the response at
         // the end of the user list)
-        todo!()
+
+        // get the user this name belongs to
+        // get the project from ID
+        // add that uer to the given project
+        let user = match get_user_from_session(auth_session, config.clone()).await {
+            Ok(x) => x,
+            Err(e) => {
+                return e.into_response();
+            },
+        };
+
+        // the permission to do this depends on the project, so we need to get that before checking
+        // permission
+        let mut project = match get_project(config.pg_pool.clone(), project_id).await {
+            Ok(Some(x)) => x,
+            Ok(None) => {
+                warn!("Sending 404 because no project with id {project_id} exists.");
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot get project by id: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                ).into_response();
+            }
+        };
+
+        let user_may_add_member_to_this_group = match project.local_permission_for_user(&user) {
+            Some(UserPermission::Admin) => { true }
+            Some(UserPermission::User) => {
+                user.is_global_admin()
+            }
+            None => {
+                user.is_global_admin()
+            }
+        };
+        if !user_may_add_member_to_this_group {
+                warn!("Sending 401 because user {} is not authorized to add member to group {}.", user.name, project.name);
+                return StatusCode::UNAUTHORIZED.into_response();
+        };
+
+        // The user is allowed to add members to project.
+        // Now we need to make sure the new member is actually a known user.
+        let new_member = match get_person(config.pg_pool.clone(), &form.username).await {
+            Ok(Some(x)) => x,
+            Ok(None) => {
+                warn!("Sending 400 because the person {} does not exist.", form.username);
+                return StatusCode::BAD_REQUEST.into_response();
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot get the new member by name: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                ).into_response();
+            }
+        };
+
+        // this is the cheapest clone we can to for nice logging later on
+        let project_name = project.name.clone();
+        // Everything okay. Add the new member.
+        project.add_member(new_member.clone(), UserPermission::User);
+
+        match update_project_members(config.pg_pool.clone(), project).await {
+            Ok(x) => {
+                info!("Added {} to {} as User; request made by {}.", new_member.name, project_name, user.name);
+                // need a way to print a single user as html (move the respective html to its own
+                // template, make a function on person to print this out
+                new_member.display(UserPermission::new_from_is_admin(user_may_add_member_to_this_group)).into_response()
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot add {} to {}: {e}. {error_uuid}", new_member.name, project_name);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                ).into_response()
+            }
+        }
     }
 
     #[derive(Deserialize, Debug)]

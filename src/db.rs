@@ -286,7 +286,7 @@ async fn remove_members(
     Ok(())
 }
 
-/// remove the given persons from the given project
+/// add the given persons to the project.
 async fn add_members(
     pool: PgPool,
     project_id: i32,
@@ -315,7 +315,7 @@ async fn add_members(
 }
 
 /// Set(overwrite) the members of a project
-async fn update_project_members(pool: PgPool, project: Project<HasID>) -> Result<(), DBError> {
+pub(crate) async fn update_project_members(pool: PgPool, project: Project<HasID>) -> Result<(), DBError> {
     let old_project = get_project(pool.clone(), project.project_id())
         .await?
         .ok_or(DBError::ProjectDoesNotExist(

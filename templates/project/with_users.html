@@ -26,9 +26,9 @@
   </div>
 </div>
 
-<div id="the-user-list" class="grid grid-cols-1">
+<div id="the-user-list-{{project.project_id()}}" class="grid grid-cols-1">
 				{% for (user, perm) in project.members %}
-  <div id="user-{{loop.index}}" class="flex justify-end border-1 border-t-0 border-r-0 border-l-0 pt-1 pr-1 pb-1 border-gray-400 dark:border-gray-600">
+  <div id="user-{{user.person_id()}}" class="flex justify-end border-1 border-t-0 border-r-0 border-l-0 pt-1 pr-1 pb-1 border-gray-400 dark:border-gray-600">
     <div class="flex w-full translate-y-2 justify-start">
       <div class="w-6"></div>
       <div>{{ user.name }}</div>

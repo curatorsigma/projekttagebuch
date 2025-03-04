@@ -81,7 +81,7 @@ impl Project<HasID> {
     /// IGNORES global permissions for the user
     pub(crate) fn local_permission_for_user(
         &self,
-        person: Person<HasID>,
+        person: &Person<HasID>,
     ) -> Option<UserPermission> {
         for (user, perm) in self.members.iter() {
             if user.person_id == person.person_id {
