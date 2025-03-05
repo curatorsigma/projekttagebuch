@@ -17,7 +17,8 @@ pub(crate) struct Project<I: DBID> {
 #[template(path = "project/header_only.html")]
 pub(crate) struct ProjectTemplate<'a> {
     project: &'a Project<HasID>,
-    permission: UserPermission,
+    /// permission of the user requesting the template
+    view_permission: UserPermission,
 }
 impl<I> Project<I>
 where
@@ -42,10 +43,11 @@ struct ProjectDisplayHeaderOnly<'a> {
 }
 
 #[derive(askama::Template)]
-#[template(path = "project/with_users.html")]
+#[template(path = "project/with_users.html", escape="none")]
 struct ProjectDisplayWithUsers<'a> {
     project: &'a Project<HasID>,
-    permission: UserPermission,
+    /// Permission of the person requesting the template
+    view_permission: UserPermission,
 }
 
 impl Project<HasID> {
@@ -65,10 +67,10 @@ impl Project<HasID> {
     }
 
     /// Render self, displaying only the header
-    pub(crate) fn display_with_users(&self, permission: UserPermission) -> String {
+    pub(crate) fn display_with_users(&self, view_permission: UserPermission) -> String {
         ProjectDisplayWithUsers {
             project: self,
-            permission,
+            view_permission,
         }
         .render()
         .expect("static template")

@@ -453,7 +453,9 @@ pub(super) mod post {
                 info!("Added {} to {} as User; request made by {}.", new_member.name, project_name, user.name);
                 // need a way to print a single user as html (move the respective html to its own
                 // template, make a function on person to print this out
-                new_member.display(UserPermission::new_from_is_admin(user_may_add_member_to_this_group)).into_response()
+                // we pass the correct view permission, and add the new user with their global
+                // permissions
+                new_member.display(UserPermission::new_from_is_admin(user_may_add_member_to_this_group), new_member.global_permission).into_response()
             }
             Err(e) => {
                 let error_uuid = Uuid::new_v4();

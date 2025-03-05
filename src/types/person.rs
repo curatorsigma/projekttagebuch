@@ -3,6 +3,7 @@
 use core::borrow::Borrow;
 
 use askama::Template;
+use tracing::trace;
 
 use super::{HasID, UserPermission, DBID};
 
@@ -12,7 +13,14 @@ use super::{HasID, UserPermission, DBID};
 #[template(path = "user/show.html")]
 struct UserTemplate<'a> {
     person: &'a Person<HasID>,
-    perm: UserPermission,
+    /// The permission of the users viewing this template
+    ///
+    /// This decides wheter `remove user` and `promote/demote user` is shown.
+    view_permission: UserPermission,
+    /// The permission of this user in its group
+    ///
+    /// This determins whether they are shown as `Admin` or `User`
+    local_permission: UserPermission,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -60,10 +68,18 @@ impl Person<HasID> {
     }
 
     /// template the user-line for this user
-    pub fn display(&self, perm: UserPermission) -> String {
+    pub fn display<A>(&self, view_permission: A, local_permission: A) -> String
+        where A: AsRef<UserPermission>,
+    {
+        // TODO: remove this trace
+        trace!("Showing user template with view-perm: {}, local-perm: {}", view_permission.as_ref().to_owned(), local_permission.as_ref().to_owned());
         UserTemplate {
             person: self,
-            perm,
+            // this is a bit of weird magic - askama templates take these permission by-ref
+            // (because they are in for-loops which .iter() )
+            // But we want to pass it as owned
+            local_permission: local_permission.as_ref().to_owned(),
+            view_permission: view_permission.as_ref().to_owned(),
         }.render().expect("static template")
     }
 }

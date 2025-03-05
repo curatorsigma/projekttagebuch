@@ -605,6 +605,10 @@
   .inline-block {
     display: inline-block;
   }
+  .size-6 {
+    width: calc(var(--spacing) * 6);
+    height: calc(var(--spacing) * 6);
+  }
   .\!h-px {
     height: 1px !important;
   }
@@ -638,6 +642,9 @@
   .w-3\/4 {
     width: calc(3/4 * 100%);
   }
+  .w-3\/5 {
+    width: calc(3/5 * 100%);
+  }
   .w-4\/5 {
     width: calc(4/5 * 100%);
   }
@@ -656,8 +663,8 @@
   .w-14 {
     width: calc(var(--spacing) * 14);
   }
-  .w-18 {
-    width: calc(var(--spacing) * 18);
+  .w-20 {
+    width: calc(var(--spacing) * 20);
   }
   .w-36 {
     width: calc(var(--spacing) * 36);
@@ -885,6 +892,9 @@
   }
   .text-sky-500 {
     color: var(--color-sky-500);
+  }
+  .italic {
+    font-style: italic;
   }
   .ordinal {
     --tw-ordinal: ordinal;
