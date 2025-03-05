@@ -4,7 +4,7 @@ use askama_axum::IntoResponse;
 /// The routes protected by a login
 use axum::{
     http::StatusCode,
-    routing::{get, post},
+    routing::{delete, get, post},
     Extension, Router,
 };
 use tracing::warn;
@@ -47,6 +47,8 @@ pub(crate) fn create_protected_router() -> Router {
             get(self::get::project_new_member_template).post(self::post::project_new_member),
         )
         .route("/web/search_user", post(self::post::search_user_results))
+        .route("/web/project/:project_id/remove_member",
+            delete(self::delete::project_remove_member))
 }
 
 /// Get the user (as present in db) from the auth session, creating relevant Server Error returns
@@ -377,12 +379,6 @@ pub(super) mod post {
         Path(project_id): Path<i32>,
         Form(form): Form<ProjectNewMemberFormData>,
     ) -> impl IntoResponse {
-        // check that the caller has privileges to do this
-        // check that the user exists
-        // update DB
-        // return the line for this user in the user list (the template should put the response at
-        // the end of the user list)
-
         // get the user this name belongs to
         // get the project from ID
         // add that uer to the given project
@@ -443,23 +439,21 @@ pub(super) mod post {
             }
         };
 
-        // this is the cheapest clone we can to for nice logging later on
-        let project_name = project.name.clone();
         // Everything okay. Add the new member.
         project.add_member(new_member.clone(), UserPermission::User);
 
-        match update_project_members(config.pg_pool.clone(), project).await {
+        match update_project_members(config.pg_pool.clone(), &project).await {
             Ok(()) => {
-                info!("Added {} to {} as User; request made by {}.", new_member.name, project_name, user.name);
+                info!("Added {} to {} as User; request made by {}.", new_member.name, project.name, user.name);
                 // need a way to print a single user as html (move the respective html to its own
                 // template, make a function on person to print this out
                 // we pass the correct view permission, and add the new user with their global
                 // permissions
-                new_member.display(UserPermission::new_from_is_admin(user_may_add_member_to_this_group), new_member.global_permission).into_response()
+                new_member.display(project.project_id(), UserPermission::new_from_is_admin(user_may_add_member_to_this_group), new_member.global_permission).into_response()
             }
             Err(e) => {
                 let error_uuid = Uuid::new_v4();
-                warn!("Sending internal server error because I cannot add {} to {}: {e}. {error_uuid}", new_member.name, project_name);
+                warn!("Sending internal server error because I cannot add {} to {}: {e}. {error_uuid}", new_member.name, project.name);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     InternalServerErrorTemplate { error_uuid },
@@ -499,5 +493,109 @@ pub(super) mod post {
         };
         let results = persons.into_iter().map(|p| (format!("{} {} ({})", p.firstname.unwrap_or("".to_owned()), p.surname.unwrap_or("".to_owned()), p.name), p.name)).collect();
         UserSearchResultsTemplate { results, }.into_response()
+    }
+}
+
+pub(super) mod delete {
+    use std::sync::Arc;
+
+    use askama_axum::IntoResponse;
+    use axum::{extract::{Path, Query}, http::StatusCode, Extension, Form};
+    use serde::Deserialize;
+    use tracing::{info, warn};
+    use uuid::Uuid;
+
+    use crate::{config::Config, db::{get_person, get_project, remove_members, update_project_members}, types::UserPermission, web_server::{login::AuthSession, InternalServerErrorTemplate}};
+
+    use super::get_user_from_session;
+
+    #[derive(Deserialize, Debug)]
+    pub(crate) struct RemoveMemberForm {
+        username: String,
+    }
+    pub(super) async fn project_remove_member(
+        auth_session: AuthSession,
+        Extension(config): Extension<Arc<Config>>,
+        Path(project_id): Path<i32>,
+        Query(form): Query<RemoveMemberForm>,
+        ) -> impl IntoResponse {
+        // get the user this name belongs to
+        // get the project from ID
+        let user = match get_user_from_session(auth_session, config.clone()).await {
+            Ok(x) => x,
+            Err(e) => {
+                return e.into_response();
+            },
+        };
+
+        // the permission to do this depends on the project, so we need to get that before checking
+        // permission
+        let mut project = match get_project(config.pg_pool.clone(), project_id).await {
+            Ok(Some(x)) => x,
+            Ok(None) => {
+                warn!("Sending 404 because no project with id {project_id} exists.");
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot get project by id: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                ).into_response();
+            }
+        };
+
+        let user_may_remove_member_from_this_group = match project.local_permission_for_user(&user) {
+            Some(UserPermission::Admin) => { true }
+            Some(UserPermission::User) => {
+                user.is_global_admin()
+            }
+            None => {
+                user.is_global_admin()
+            }
+        };
+        if !user_may_remove_member_from_this_group {
+                warn!("Sending 401 because user {} is not authorized to remove member from group {}.", user.name, project.name);
+                return StatusCode::UNAUTHORIZED.into_response();
+        };
+
+        // The user is allowed to add members to project.
+        // Now we need to make sure the new member is actually a known user.
+        let remove_user = match get_person(config.pg_pool.clone(), &form.username).await {
+            Ok(Some(x)) => x,
+            Ok(None) => {
+                warn!("Sending 400 because the person {} does not exist.", form.username);
+                return StatusCode::BAD_REQUEST.into_response();
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot get the new member by name: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                ).into_response();
+            }
+        };
+
+        // this is the cheapest clone we can to for nice logging later on
+        let project_name = project.name.clone();
+        // Everything okay. Remove the new member.
+        project.add_member(remove_user.clone(), UserPermission::User);
+
+        match remove_members(config.pg_pool.clone(), project_id, &[&remove_user]).await {
+            Ok(()) => {
+                info!("Removed {} from {}; request made by {}.", remove_user.name, project_name, user.name);
+                (StatusCode::OK, "").into_response()
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot remove {} from {}: {e}. {error_uuid}", remove_user.name, project_name);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                ).into_response()
+            }
+        }
     }
 }

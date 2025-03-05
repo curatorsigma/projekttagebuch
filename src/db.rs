@@ -264,7 +264,7 @@ pub(crate) async fn get_project(pool: PgPool, id: i32) -> Result<Option<Project<
 }
 
 /// remove the given persons from the given project
-async fn remove_members(
+pub(crate) async fn remove_members(
     pool: PgPool,
     project_id: i32,
     members_to_remove: &[&Person<HasID>],
@@ -321,7 +321,7 @@ async fn add_members(
 }
 
 /// Set(overwrite) the members of a project
-pub(crate) async fn update_project_members(pool: PgPool, project: Project<HasID>) -> Result<(), DBError> {
+pub(crate) async fn update_project_members(pool: PgPool, project: &Project<HasID>) -> Result<(), DBError> {
     let old_project = get_project(pool.clone(), project.project_id())
         .await?
         .ok_or(DBError::ProjectDoesNotExist(
@@ -693,7 +693,7 @@ mod test {
         basil_1.members.push((hanna, UserPermission::Admin));
         basil_1.members.push((samuel, UserPermission::Admin));
 
-        update_project_members(pool.clone(), basil_1).await?;
+        update_project_members(pool.clone(), &basil_1).await?;
 
         let project = get_project(pool.clone(), project_id).await?.unwrap();
         assert_eq!(project.members.len(), 3);

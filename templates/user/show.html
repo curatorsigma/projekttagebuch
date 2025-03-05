@@ -1,4 +1,4 @@
-  <div class="user-{{person.person_id()}} flex justify-end border-1 border-t-0 border-r-0 border-l-0 pt-1 pr-1 pb-1 border-gray-400 dark:border-gray-600">
+  <div id="user-{{project_id}}-{{person.person_id()}}" class="flex justify-end border-1 border-t-0 border-r-0 border-l-0 pt-1 pr-1 pb-1 border-gray-400 dark:border-gray-600">
     <div class="flex w-full translate-y-2 justify-start">
       <div class="w-6"></div>
       <div>{{ person.name }}</div>
@@ -46,7 +46,13 @@
   </div>
 
 	{% if view_permission == UserPermission::Admin %}
-		<button class="h-10 w-10 rounded-lg text-rose-600 hover:text-rose-400 dark:text-rose-400 dark:hover:text-rose-300 hover:rounded-md hover:bg-neutral-500 dark:bg-gray-900 dark:hover:bg-neutral-700">
+		<button
+			class="h-10 w-10 rounded-lg text-rose-600 hover:text-rose-400 dark:text-rose-400 dark:hover:text-rose-300 hover:rounded-md hover:bg-neutral-500 dark:bg-gray-900 dark:hover:bg-neutral-700"
+			hx-delete="/web/project/{{project_id}}/remove_member"
+			hx-target="#user-{{project_id}}-{{person.person_id()}}"
+			hx-swap="outerHTML"
+			hx-target-error="#error_display"
+			hx-vals='{"username": "{{person.name}}"}'>
 		<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 translate-x-2">
 		<path stroke-linecap="round" stroke-linejoin="round" d="M22 10.5h-6m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM4 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 10.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
 		</svg>

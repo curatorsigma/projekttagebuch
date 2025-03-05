@@ -28,7 +28,7 @@
 
 <div id="the-user-list-{{project.project_id()}}" class="grid grid-cols-1">
 {% for (user, perm) in project.members %}
-  {{ user.display(view_permission, perm) }}
+  {{ user.display(project.project_id(), view_permission, perm) }}
 {% endfor %}
   <div id="add-a-user-{{project.project_id()}}" class="flex justify-evenly">
     <div class="relative flex justify-center">

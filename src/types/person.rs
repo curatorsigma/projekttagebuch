@@ -13,6 +13,8 @@ use super::{HasID, UserPermission, DBID};
 #[template(path = "user/show.html")]
 struct UserTemplate<'a> {
     person: &'a Person<HasID>,
+    /// the project this user is shown in
+    project_id: i32,
     /// The permission of the users viewing this template
     ///
     /// This decides wheter `remove user` and `promote/demote user` is shown.
@@ -68,13 +70,12 @@ impl Person<HasID> {
     }
 
     /// template the user-line for this user
-    pub fn display<A>(&self, view_permission: A, local_permission: A) -> String
+    pub fn display<A>(&self, project_id: i32, view_permission: A, local_permission: A) -> String
         where A: AsRef<UserPermission>,
     {
-        // TODO: remove this trace
-        trace!("Showing user template with view-perm: {}, local-perm: {}", view_permission.as_ref().to_owned(), local_permission.as_ref().to_owned());
         UserTemplate {
             person: self,
+            project_id,
             // this is a bit of weird magic - askama templates take these permission by-ref
             // (because they are in for-loops which .iter() )
             // But we want to pass it as owned
