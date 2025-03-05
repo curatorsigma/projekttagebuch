@@ -24,6 +24,7 @@ pub(crate) enum DBError {
     CannotUpdateSurname(sqlx::Error, String),
     CannotSelectSimilarNames(sqlx::Error),
     CannotRemoveMember(sqlx::Error),
+    CannotUpdateMemberPermission(sqlx::Error),
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
@@ -68,6 +69,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotRemoveMember(x) => {
                 write!(f, "Unable to delete person: {x}.")
+            }
+            Self::CannotUpdateMemberPermission(x) => {
+                write!(f, "Unable to update permission for person: {x}.")
             }
             Self::CannotUpdateGlobalPermissions(x, y) => {
                 write!(f, "Cannot update global permissions for user {}: {}.", x, y)
@@ -358,6 +362,19 @@ pub(crate) async fn update_project_members(pool: PgPool, project: &Project<HasID
     // add new members
     add_members(pool.clone(), project.project_id(), &members_to_add).await?;
 
+    Ok(())
+}
+
+/// Set(overwrite) the members of a project
+pub(crate) async fn update_member_permission(pool: PgPool, project_id: i32, person_id: i32, new_permission: UserPermission) -> Result<(), DBError> {
+    sqlx::query!("UPDATE PersonProjectMap SET IsProjectAdmin = $1 WHERE PersonID = $2 AND ProjectID = $3;",
+        new_permission.is_admin(),
+        person_id,
+        project_id,
+    )
+    .execute(&pool)
+    .await
+    .map_err(DBError::CannotUpdateMemberPermission)?;
     Ok(())
 }
 
@@ -729,6 +746,19 @@ mod test {
         let persons = get_all_persons(pool.clone()).await?;
         assert_eq!(persons.len(), 3);
 
+        Ok(())
+    }
+
+    #[sqlx::test(fixtures("two_projects"))]
+    async fn test_update_member_permission(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
+        update_member_permission(pool.clone(), 1, 1, UserPermission::User).await?;
+
+        let res = get_project(pool.clone(), 1).await?.unwrap();
+        for (member, perm) in res.members {
+            if member.person_id() == 1 {
+                assert_eq!(perm, UserPermission::User);
+            };
+        };
         Ok(())
     }
 }
