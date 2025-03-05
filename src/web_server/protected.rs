@@ -449,7 +449,7 @@ pub(super) mod post {
         project.add_member(new_member.clone(), UserPermission::User);
 
         match update_project_members(config.pg_pool.clone(), project).await {
-            Ok(x) => {
+            Ok(()) => {
                 info!("Added {} to {} as User; request made by {}.", new_member.name, project_name, user.name);
                 // need a way to print a single user as html (move the respective html to its own
                 // template, make a function on person to print this out

@@ -23,6 +23,7 @@ pub(crate) enum DBError {
     CannotUpdateFirstname(sqlx::Error, String),
     CannotUpdateSurname(sqlx::Error, String),
     CannotSelectSimilarNames(sqlx::Error),
+    CannotRemoveMember(sqlx::Error),
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
@@ -64,6 +65,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotDeletePerson(x, y) => {
                 write!(f, "Unable to delete person with id {x} and name {y}.")
+            }
+            Self::CannotRemoveMember(x) => {
+                write!(f, "Unable to delete person: {x}.")
             }
             Self::CannotUpdateGlobalPermissions(x, y) => {
                 write!(f, "Cannot update global permissions for user {}: {}.", x, y)
@@ -277,12 +281,13 @@ async fn remove_members(
         )
         .execute(&mut *tx)
         .await
-        .map_err(DBError::CannotInsertPPMap)?;
+        .map_err(DBError::CannotRemoveMember)?;
     }
 
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
+    trace!("Deleted {} members from project {}.", members_to_remove.len(), project_id);
     Ok(())
 }
 
@@ -311,6 +316,7 @@ async fn add_members(
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
+    trace!("Inserted {} new members to project {}.", members_to_add.len(), project_id);
     Ok(())
 }
 
@@ -327,7 +333,7 @@ pub(crate) async fn update_project_members(pool: PgPool, project: Project<HasID>
         .members
         .iter()
         .filter_map(|(m, _)| {
-            if project.members.iter().any(|(n, _)| m == n) {
+            if project.members.iter().all(|(n, _)| m != n) {
                 Some(m)
             } else {
                 None
@@ -339,7 +345,7 @@ pub(crate) async fn update_project_members(pool: PgPool, project: Project<HasID>
         .members
         .iter()
         .filter_map(|(m, is_adm)| {
-            if old_project.members.iter().any(|(n, _)| m == n) {
+            if old_project.members.iter().all(|(n, _)| m != n) {
                 Some((m, is_adm))
             } else {
                 None
@@ -371,6 +377,10 @@ async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>,
     .fetch_one(&mut *tx)
     .await
     .map_err(DBError::CannotInsertPerson)?;
+
+    tx.commit()
+        .await
+        .map_err(DBError::CannotCommitTransaction)?;
 
     Ok(Person::<HasID>::new(
         new_id_result.personid,
@@ -585,7 +595,9 @@ mod test {
             firstname: Some("John".to_owned()),
             surname: Some("Doe".to_owned()),
         };
-        add_person(pool, person).await.unwrap();
+        add_person(pool.clone(), person).await.unwrap();
+        let ps = get_all_persons(pool.clone()).await.unwrap();
+        assert_eq!(ps.into_iter().next().unwrap(), Person::<HasID>::new(1, "John Doe".to_owned(), UserPermission::User, Some("Doe".to_owned()), Some("John".to_owned())));
         Ok(())
     }
 
@@ -684,7 +696,7 @@ mod test {
         update_project_members(pool.clone(), basil_1).await?;
 
         let project = get_project(pool.clone(), project_id).await?.unwrap();
-        assert_eq!(project.members.len(), 2);
+        assert_eq!(project.members.len(), 3);
 
         Ok(())
     }
