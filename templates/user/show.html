@@ -12,9 +12,16 @@
 			Admin
 		</div>
 			{% if view_permission == UserPermission::Admin %}
+				<button
+				  hx-post="/web/project/{{project_id}}/set_member_permission"
+				  hx-vals='{ "username": "{{person.name}}", "is_local_admin": false }'
+				  hx-target="#user-{{project_id}}-{{person.person_id()}}"
+				  hx-swap="outerHTML"
+				  hx-target-error="#error_display">
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-neutral-500 dark:hover:bg-neutral-700 size-6">
 		<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 5.25 7.5 7.5 7.5-7.5m-15 6 7.5 7.5 7.5-7.5" />
 				</svg>
+				</button>
 			{% endif %}
 		{% else %}
 		<div>
@@ -35,10 +42,17 @@
 		{% else %}
 		<div></div>
 			{% if view_permission == UserPermission::Admin %}
+			<button
+			  hx-post="/web/project/{{project_id}}/set_member_permission"
+			  hx-vals='{ "username": "{{person.name}}", "is_local_admin": true }'
+			  hx-target="#user-{{project_id}}-{{person.person_id()}}"
+			  hx-swap="outerHTML"
+			  hx-target-error="#error_display">
 			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-neutral-500 dark:hover:bg-neutral-700 size-6">
 				<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 18.75 7.5-7.5 7.5 7.5" />
 				<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 7.5-7.5 7.5 7.5" />
 			</svg>
+			</button>
 			{% endif %}
 		{% endif %}
   	{% endif %}
