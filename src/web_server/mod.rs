@@ -24,6 +24,7 @@ use tracing::{debug, event, Level};
 use crate::{config::Config, ldap::LDAPBackend, InShutdown};
 pub(crate) mod login;
 mod protected;
+mod actions;
 
 #[derive(Template)]
 #[template(path = "500.html")]

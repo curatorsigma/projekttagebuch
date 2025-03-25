@@ -277,21 +277,23 @@ pub(crate) async fn remove_members(
         .begin()
         .await
         .map_err(DBError::CannotStartTransaction)?;
+    let mut num_deleted = 0_i64;
     for mem in members_to_remove.iter() {
-        sqlx::query!(
-            "DELETE FROM PersonProjectMap WHERE PersonID = $1 AND ProjectID = $2;",
+        let deleted = sqlx::query!(
+            "WITH deleted AS (DELETE FROM PersonProjectMap WHERE PersonID = $1 AND ProjectID = $2 RETURNING *) SELECT count(*) from deleted;",
             mem.person_id(),
             project_id,
         )
-        .execute(&mut *tx)
+        .fetch_one(&mut *tx)
         .await
         .map_err(DBError::CannotRemoveMember)?;
+        num_deleted += deleted.count.unwrap_or(0_i64);
     }
 
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
-    trace!("Deleted {} members from project {}.", members_to_remove.len(), project_id);
+    trace!("Deleted {} members from project {}.", num_deleted, project_id);
     Ok(())
 }
 
