@@ -1,11 +1,13 @@
 //! Handling the Config and associated objects.
 
 use axum_server::tls_rustls::RustlsConfig;
+use matrix_sdk::{Client, ClientBuildError};
 use serde::Deserialize;
 use sqlx::{Pool, Postgres};
 use tracing::{event, Level};
 
 use crate::ldap::{LDAPBackend, LDAPError};
+use crate::matrix::MatrixClient;
 
 #[derive(Debug)]
 pub(crate) enum ConfigError {
@@ -14,6 +16,8 @@ pub(crate) enum ConfigError {
     ReadConfigFileError(std::io::Error),
     ParseConfigFileError(toml::de::Error),
     LdapConnectionError(LDAPError),
+    MatrixClientCreationError(ClientBuildError),
+    MatrixLoginError(matrix_sdk::Error),
 }
 impl core::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -33,6 +37,12 @@ impl core::fmt::Display for ConfigError {
             Self::LdapConnectionError(x) => {
                 write!(f, "Error connecting to LDAP: {x}")
             }
+            Self::MatrixClientCreationError(e) => {
+                write!(f, "Error creating Matrix Client: {e}")
+            }
+            Self::MatrixLoginError(e) => {
+                write!(f, "Error logging in to Matrix: {e}")
+            }
         }
     }
 }
@@ -48,6 +58,7 @@ struct ConfigData {
     ldap: LdapConfigData,
     db: DbConfigData,
     web: WebConfigData,
+    matrix: MatrixConfigData,
 }
 
 #[derive(Deserialize)]
@@ -123,6 +134,47 @@ impl WebConfigData {
     }
 }
 
+#[derive(Deserialize)]
+pub(crate) struct MatrixConfigData {
+    /// server name to which rooms and users are relative (example.com)
+    servername: String,
+    /// server url that actually hosts the matrix server (https://matrix.example.com)
+    homeserver_url: String,
+    /// username local part to log in with (exampleuser, NOT @exampleuser:example.com)
+    /// This user will be used to create rooms and invite users
+    username: String,
+    /// password for that user
+    password: String,
+}
+impl core::fmt::Debug for MatrixConfigData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MatrixConfigData")
+            .field("homeserver_url", &self.homeserver_url)
+            .field("username", &self.username)
+            .field("password", &"[redacted]")
+            .finish()
+    }
+}
+impl MatrixConfigData {
+    async fn try_into_matrix_client(self) -> Result<MatrixClient, ConfigError> {
+        let client = Client::builder()
+            .homeserver_url(self.homeserver_url)
+            .build()
+            .await
+            .map_err(ConfigError::MatrixClientCreationError)?;
+        client
+            .matrix_auth()
+            .login_username(
+                format!("@{}:{}", self.username, self.servername),
+                &self.password,
+            )
+            .send()
+            .await
+            .map_err(ConfigError::MatrixLoginError)?;
+        Ok(MatrixClient::new(client))
+    }
+}
+
 struct DbConfig {
     pool: Pool<Postgres>,
 }
@@ -177,6 +229,7 @@ pub(crate) struct Config {
     pub(crate) ldap_backend: LDAPBackend,
     pub(crate) pg_pool: Pool<Postgres>,
     pub(crate) web_config: WebConfig,
+    pub(crate) matrix_client: MatrixClient,
 }
 impl Config {
     pub async fn create() -> Result<Self, ConfigError> {
@@ -212,6 +265,10 @@ impl Config {
 
         // Web
         let web_config = config_data.web.try_into_web_config().await?;
+
+        // Matrix
+        let matrix_client = config_data.matrix.try_into_matrix_client().await?;
+
         Ok(Self {
             log_level: config_data.log_level,
             log_location: config_data
@@ -222,6 +279,7 @@ impl Config {
             ldap_backend,
             pg_pool,
             web_config,
+            matrix_client,
         })
     }
 }

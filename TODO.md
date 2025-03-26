@@ -10,6 +10,7 @@
 
 ## Matrix-Layer
 ### project/new
+- refactor as action
 - erzeuge einen neuen Raum in Matrix
 ### project/:projectid/new_member
 - füge eine Person dem Raum hinzu

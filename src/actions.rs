@@ -7,15 +7,12 @@
 
 use std::sync::Arc;
 
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
-    config::Config,
-    db::{
-        get_person, get_project, remove_members, update_member_permission, update_project_members,
-        DBError,
-    },
-    types::{HasID, Person, Project, UserPermission},
+    config::Config, db::{
+        get_person, get_project, remove_members, remove_members_prepare, update_member_permission, update_project_members, update_project_members_prepare, DBError
+    }, matrix::MatrixClientError, types::{HasID, Person, Project, UserPermission}
 };
 
 #[derive(Debug)]
@@ -26,6 +23,7 @@ pub(super) enum AddMemberError {
     RequesterHasNoPermission(String),
     PersonDoesNotExist,
     DB(DBError),
+    Matrix(MatrixClientError),
 }
 impl core::fmt::Display for AddMemberError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -42,10 +40,18 @@ impl core::fmt::Display for AddMemberError {
             Self::DB(e) => {
                 write!(f, "The DB returned this error: {e}.")
             }
+            Self::Matrix(e) => {
+                write!(f, "Error communicating with matrix server: {e}")
+            }
         }
     }
 }
 impl std::error::Error for AddMemberError {}
+impl From<MatrixClientError> for AddMemberError {
+    fn from(value: MatrixClientError) -> Self {
+        Self::Matrix(value)
+    }
+}
 
 /// Add a new member to a group and make sure all state is ok.
 ///
@@ -63,7 +69,8 @@ pub(super) async fn add_member_to_project(
 ) -> Result<(Person<HasID>, Project<HasID>), AddMemberError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
-    let mut project = match get_project(config.pg_pool.clone(), project_id).await {
+    let mut con = config.pg_pool.clone().acquire().await.map_err(|e| AddMemberError::DB(DBError::CannotStartTransaction(e)))?;
+    let mut project = match get_project(&mut con, project_id).await {
         Ok(Some(x)) => x,
         Ok(None) => {
             return Err(AddMemberError::ProjectDoesNotExist);
@@ -97,14 +104,17 @@ pub(super) async fn add_member_to_project(
     // Everything okay. Add the new member.
     project.add_member(new_member.clone(), UserPermission::User);
 
-    // TODO: safely also add the user to the relevant matrix group
-    // idea:
-    // - start the transaction
-    // - update the things
-    // - send command to matrix
-    // - rollback if matrix answers with error
-    match update_project_members(config.pg_pool.clone(), &project).await {
-        Ok(()) => {
+    match update_project_members_prepare(config.pg_pool.clone(), &project).await {
+        Ok(tx) => {
+            debug!("Prepared a transaction to add {} to {}. Now trying to remove from Matrix...", new_member.name, project.name);
+            // now try to make the deletion from Matrix
+            let mut our_client = config.matrix_client.clone();
+            our_client.ensure_user_in_room(&new_member, &project).await?;
+            debug!("Successfully added {} to {} in Matrix. Now trying to commit the held DB transaction...", new_member.name, project.name);
+            tx.commit()
+                .await
+                .map_err(|e| AddMemberError::DB(DBError::CannotCommitTransaction(e)))?;
+
             info!(
                 "Added {} to {} as User; request made by {}.",
                 new_member.name, project.name, requester.name
@@ -123,6 +133,7 @@ pub(super) enum RemoveMemberError {
     RequesterHasNoPermission(String),
     PersonDoesNotExist,
     DB(DBError),
+    Matrix(MatrixClientError),
 }
 impl core::fmt::Display for RemoveMemberError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -139,10 +150,18 @@ impl core::fmt::Display for RemoveMemberError {
             Self::DB(e) => {
                 write!(f, "The DB returned this error: {e}.")
             }
+            Self::Matrix(e) => {
+                write!(f, "Error communicating with matrix server: {e}")
+            }
         }
     }
 }
 impl std::error::Error for RemoveMemberError {}
+impl From<MatrixClientError> for RemoveMemberError {
+    fn from(value: MatrixClientError) -> Self {
+        Self::Matrix(value)
+    }
+}
 
 /// Remove a member from a group and make sure all state is ok.
 ///
@@ -160,7 +179,8 @@ pub(super) async fn remove_member_from_project(
 ) -> Result<(Person<HasID>, Project<HasID>), RemoveMemberError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
-    let project = match get_project(config.pg_pool.clone(), project_id).await {
+    let mut con = config.pg_pool.clone().acquire().await.map_err(|e| RemoveMemberError::DB(DBError::CannotStartTransaction(e)))?;
+    let project = match get_project(&mut con, project_id).await {
         Ok(Some(x)) => x,
         Ok(None) => {
             return Err(RemoveMemberError::ProjectDoesNotExist);
@@ -192,20 +212,24 @@ pub(super) async fn remove_member_from_project(
         }
     };
 
-    // TODO: safely also remove the user from the relevant matrix group
-    // idea:
-    // - start the transaction
-    // - update the things
-    // - send command to matrix
-    // - rollback if matrix answers with error
-    match remove_members(
+    match remove_members_prepare(
         config.pg_pool.clone(),
         project.project_id(),
         &[&remove_member],
     )
     .await
     {
-        Ok(()) => {
+        Ok((_num_deleted, tx)) => {
+            debug!("Prepared a transaction to remove {} from {}. Now trying to remove from Matrix...", remove_member.name, project.name);
+            // now try to make the deletion from Matrix
+            let mut our_client = config.matrix_client.clone();
+            our_client.ensure_user_not_in_room(&remove_member, &project).await?;
+            debug!("Successfully removed {} from {} in Matrix. Now trying to commit the held DB transaction...", remove_member.name, project.name);
+            tx.commit()
+                .await
+                .map_err(|e| RemoveMemberError::DB(DBError::CannotCommitTransaction(e)))?;
+
+            // both matrix and DB have agreed that all is well
             info!(
                 "Removed {} from {} as User; request made by {}.",
                 remove_member.name, project.name, requester.name
@@ -254,7 +278,8 @@ pub async fn set_member_permission(
 ) -> Result<(Person<HasID>, Project<HasID>), SetPermissionError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
-    let project = match get_project(config.pg_pool.clone(), project_id).await {
+    let mut con = config.pg_pool.clone().acquire().await.map_err(|e| SetPermissionError::DB(DBError::CannotStartTransaction(e)))?;
+    let project = match get_project(&mut con, project_id).await {
         Ok(Some(x)) => x,
         Ok(None) => {
             return Err(SetPermissionError::ProjectDoesNotExist);

@@ -9,6 +9,7 @@ mod config;
 mod db;
 mod ldap;
 mod ldap_sync;
+mod matrix;
 mod sync;
 mod types;
 mod web_server;

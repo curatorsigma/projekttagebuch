@@ -1,6 +1,7 @@
 //! The [`Project`] type used throughout
 
 use core::borrow::Borrow;
+use std::borrow::Cow;
 
 use askama::{Html, Template};
 
@@ -33,6 +34,10 @@ where
             name,
             members: vec![],
         }
+    }
+
+    pub fn matrix_room_alias_local(&self) -> Cow<'_, str> {
+        urlencoding::encode(&self.name)
     }
 }
 

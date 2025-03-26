@@ -100,7 +100,7 @@ async fn get_user_from_session(
 
 pub(super) mod get {
     use crate::{
-        db::{get_person, get_project, get_projects},
+        db::{get_person, get_project, get_projects, DBError},
         types::{HasID, Project, UserPermission},
         web_server::{login::AuthSession, InternalServerErrorTemplate},
     };
@@ -212,7 +212,19 @@ pub(super) mod get {
             }
         };
 
-        let project = match get_project(config.pg_pool.clone(), project_id).await {
+        let mut con = match config.pg_pool.clone().acquire().await.map_err(DBError::CannotStartTransaction) {
+            Ok(x) => { x }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot start a transaction: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response();
+            }
+        };
+        let project = match get_project(&mut con, project_id).await {
             Ok(Some(x)) => x,
             Ok(None) => {
                 info!("Project {project_id} was requested but does not exist.");
@@ -244,7 +256,19 @@ pub(super) mod get {
             }
         };
 
-        let project = match get_project(config.pg_pool.clone(), project_id).await {
+        let mut con = match config.pg_pool.clone().acquire().await.map_err(DBError::CannotStartTransaction) {
+            Ok(x) => { x }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot start a transaction: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response();
+            }
+        };
+        let project = match get_project(&mut con, project_id).await {
             Ok(Some(x)) => x,
             Ok(None) => {
                 info!("Project {project_id} was requested but does not exist.");
@@ -446,6 +470,15 @@ pub(super) mod post {
                 )
                     .into_response()
             }
+            Err(AddMemberError::Matrix(e)) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because communication with Matrix failed: {e}. {error_uuid}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response()
+            }
         }
     }
 
@@ -635,6 +668,15 @@ pub(super) mod delete {
             Err(RemoveMemberError::DB(e)) => {
                 let error_uuid = Uuid::new_v4();
                 warn!("Sending internal server error because a DB interaction failed: {e}. {error_uuid}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response()
+            }
+            Err(RemoveMemberError::Matrix(e)) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because communication with Matrix failed: {e}. {error_uuid}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     InternalServerErrorTemplate { error_uuid },
