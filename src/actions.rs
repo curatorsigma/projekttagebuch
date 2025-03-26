@@ -11,7 +11,10 @@ use tracing::info;
 
 use crate::{
     config::Config,
-    db::{get_person, get_project, remove_members, update_project_members, DBError},
+    db::{
+        get_person, get_project, remove_members, update_member_permission, update_project_members,
+        DBError,
+    },
     types::{HasID, Person, Project, UserPermission},
 };
 
@@ -157,7 +160,7 @@ pub(super) async fn remove_member_from_project(
 ) -> Result<(Person<HasID>, Project<HasID>), RemoveMemberError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
-    let mut project = match get_project(config.pg_pool.clone(), project_id).await {
+    let project = match get_project(config.pg_pool.clone(), project_id).await {
         Ok(Some(x)) => x,
         Ok(None) => {
             return Err(RemoveMemberError::ProjectDoesNotExist);
@@ -210,5 +213,97 @@ pub(super) async fn remove_member_from_project(
             Ok((remove_member, project))
         }
         Err(e) => Err(RemoveMemberError::DB(e)),
+    }
+}
+
+#[derive(Debug)]
+pub(super) enum SetPermissionError {
+    ProjectDoesNotExist,
+    /// Name of the Project the requester wanted to add to
+    /// (the caller does not know how that project is called yet)
+    RequesterHasNoPermission(String),
+    PersonDoesNotExist,
+    DB(DBError),
+}
+impl core::fmt::Display for SetPermissionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ProjectDoesNotExist => {
+                write!(f, "The project does not exist.")
+            }
+            Self::PersonDoesNotExist => {
+                write!(f, "The person does not exist.")
+            }
+            Self::RequesterHasNoPermission(_) => {
+                write!(f, "The requester does not have the necessary permissions.")
+            }
+            Self::DB(e) => {
+                write!(f, "The DB returned this error: {e}.")
+            }
+        }
+    }
+}
+impl std::error::Error for SetPermissionError {}
+
+pub async fn set_member_permission(
+    config: Arc<Config>,
+    requester: &Person<HasID>,
+    change_member_name: &str,
+    project_id: i32,
+    new_permission: UserPermission,
+) -> Result<(Person<HasID>, Project<HasID>), SetPermissionError> {
+    // the permission to do this depends on the project, so we need to get that before checking
+    // permission
+    let project = match get_project(config.pg_pool.clone(), project_id).await {
+        Ok(Some(x)) => x,
+        Ok(None) => {
+            return Err(SetPermissionError::ProjectDoesNotExist);
+        }
+        Err(e) => {
+            return Err(SetPermissionError::DB(e));
+        }
+    };
+
+    let user_may_set_member_permissions = match project.local_permission_for_user(&requester) {
+        Some(UserPermission::Admin) => true,
+        Some(UserPermission::User) => requester.is_global_admin(),
+        None => requester.is_global_admin(),
+    };
+    if !user_may_set_member_permissions {
+        return Err(SetPermissionError::RequesterHasNoPermission(
+            project.name.clone(),
+        ));
+    };
+
+    // The user is allowed to set member permissions on this project.
+    // Now we need to make sure the requested member is actually a known user.
+    let change_member = match get_person(config.pg_pool.clone(), &change_member_name).await {
+        Ok(Some(x)) => x,
+        Ok(None) => {
+            return Err(SetPermissionError::PersonDoesNotExist);
+        }
+        Err(e) => {
+            return Err(SetPermissionError::DB(e));
+        }
+    };
+
+    match update_member_permission(
+        config.pg_pool.clone(),
+        project_id,
+        change_member.person_id(),
+        new_permission,
+    )
+    .await
+    {
+        Ok(()) => {
+            info!(
+                "Updated permission for {} in {}; is now {}; request made by {}.",
+                change_member.name, project.name, new_permission, requester.name
+            );
+            return Ok((change_member, project));
+        }
+        Err(e) => {
+            return Err(SetPermissionError::DB(e));
+        }
     }
 }

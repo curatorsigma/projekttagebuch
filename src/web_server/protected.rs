@@ -296,7 +296,9 @@ pub(super) mod post {
     use uuid::Uuid;
 
     use crate::{
-        actions::{add_member_to_project, AddMemberError},
+        actions::{
+            add_member_to_project, set_member_permission, AddMemberError, SetPermissionError,
+        },
         config::Config,
         db::{
             add_project, get_person, get_persons_with_similar_name, get_project,
@@ -508,89 +510,49 @@ pub(super) mod post {
     ) -> impl IntoResponse {
         // get the user this name belongs to
         // get the project from ID
-        let user = match get_user_from_session(auth_session, config.clone()).await {
+        let requester = match get_user_from_session(auth_session, config.clone()).await {
             Ok(x) => x,
             Err(e) => {
                 return e.into_response();
             }
         };
 
-        // the permission to do this depends on the project, so we need to get that before checking
-        // permission
-        let project = match get_project(config.pg_pool.clone(), project_id).await {
-            Ok(Some(x)) => x,
-            Ok(None) => {
+        let new_perm = UserPermission::new_from_is_admin(form.is_local_admin);
+        match set_member_permission(config, &requester, &form.username, project_id, new_perm).await
+        {
+            Ok((changed_user, project)) => {
+                let requester_current_permission = UserPermission::new_from_is_admin(match project
+                    .local_permission_for_user(&requester)
+                {
+                    Some(UserPermission::Admin) => true,
+                    Some(UserPermission::User) => requester.is_global_admin(),
+                    None => requester.is_global_admin(),
+                });
+                changed_user
+                    .display(project_id, requester_current_permission, new_perm)
+                    .into_response()
+            }
+            Err(SetPermissionError::ProjectDoesNotExist) => {
                 warn!("Sending 404 because no project with id {project_id} exists.");
-                return StatusCode::NOT_FOUND.into_response();
+                StatusCode::NOT_FOUND.into_response()
             }
-            Err(e) => {
-                let error_uuid = Uuid::new_v4();
-                warn!("Sending internal server error because I cannot get project by id: {e}. {error_uuid}");
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    InternalServerErrorTemplate { error_uuid },
-                )
-                    .into_response();
-            }
-        };
-
-        let user_may_set_member_permissions = match project.local_permission_for_user(&user) {
-            Some(UserPermission::Admin) => true,
-            Some(UserPermission::User) => user.is_global_admin(),
-            None => user.is_global_admin(),
-        };
-        if !user_may_set_member_permissions {
-            warn!("Sending 401 because user {} is not authorized to set member permissions on group {}.", user.name, project.name);
-            return StatusCode::UNAUTHORIZED.into_response();
-        };
-
-        // The user is allowed to set member permissions on this project.
-        // Now we need to make sure the requested member is actually a known user.
-        let change_member = match get_person(config.pg_pool.clone(), &form.username).await {
-            Ok(Some(x)) => x,
-            Ok(None) => {
+            Err(SetPermissionError::PersonDoesNotExist) => {
                 warn!(
                     "Sending 400 because the person {} does not exist.",
                     form.username
                 );
-                return StatusCode::BAD_REQUEST.into_response();
+                StatusCode::BAD_REQUEST.into_response()
             }
-            Err(e) => {
-                let error_uuid = Uuid::new_v4();
-                warn!("Sending internal server error because I cannot get the new member by name: {e}. {error_uuid}");
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    InternalServerErrorTemplate { error_uuid },
-                )
-                    .into_response();
-            }
-        };
-
-        let new_perm = UserPermission::new_from_is_admin(form.is_local_admin);
-        match update_member_permission(
-            config.pg_pool.clone(),
-            project_id,
-            change_member.person_id(),
-            new_perm,
-        )
-        .await
-        {
-            Ok(()) => {
-                info!(
-                    "Updated permission for {} in {}; is now {}; request made by {}.",
-                    change_member.name, project.name, new_perm, user.name
+            Err(SetPermissionError::RequesterHasNoPermission(project_name)) => {
+                warn!(
+                    "Sending 401 because user {} is not authorized to add member to group {}.",
+                    requester.name, project_name
                 );
-                change_member
-                    .display(
-                        project_id,
-                        UserPermission::new_from_is_admin(user_may_set_member_permissions),
-                        new_perm,
-                    )
-                    .into_response()
+                StatusCode::UNAUTHORIZED.into_response()
             }
-            Err(e) => {
+            Err(SetPermissionError::DB(e)) => {
                 let error_uuid = Uuid::new_v4();
-                warn!("Sending internal server error because I cannot remove {} from {}: {e}. {error_uuid}", change_member.name, project.name);
+                warn!("Sending internal server error because a DB interaction failed: {e}. {error_uuid}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     InternalServerErrorTemplate { error_uuid },
