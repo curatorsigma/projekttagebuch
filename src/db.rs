@@ -293,7 +293,11 @@ pub(crate) async fn remove_members(
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
-    trace!("Deleted {} members from project {}.", num_deleted, project_id);
+    trace!(
+        "Deleted {} members from project {}.",
+        num_deleted,
+        project_id
+    );
     Ok(())
 }
 
@@ -322,12 +326,19 @@ async fn add_members(
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
-    trace!("Inserted {} new members to project {}.", members_to_add.len(), project_id);
+    trace!(
+        "Inserted {} new members to project {}.",
+        members_to_add.len(),
+        project_id
+    );
     Ok(())
 }
 
 /// Set(overwrite) the members of a project
-pub(crate) async fn update_project_members(pool: PgPool, project: &Project<HasID>) -> Result<(), DBError> {
+pub(crate) async fn update_project_members(
+    pool: PgPool,
+    project: &Project<HasID>,
+) -> Result<(), DBError> {
     let old_project = get_project(pool.clone(), project.project_id())
         .await?
         .ok_or(DBError::ProjectDoesNotExist(
@@ -368,8 +379,14 @@ pub(crate) async fn update_project_members(pool: PgPool, project: &Project<HasID
 }
 
 /// Set(overwrite) the members of a project
-pub(crate) async fn update_member_permission(pool: PgPool, project_id: i32, person_id: i32, new_permission: UserPermission) -> Result<(), DBError> {
-    sqlx::query!("UPDATE PersonProjectMap SET IsProjectAdmin = $1 WHERE PersonID = $2 AND ProjectID = $3;",
+pub(crate) async fn update_member_permission(
+    pool: PgPool,
+    project_id: i32,
+    person_id: i32,
+    new_permission: UserPermission,
+) -> Result<(), DBError> {
+    sqlx::query!(
+        "UPDATE PersonProjectMap SET IsProjectAdmin = $1 WHERE PersonID = $2 AND ProjectID = $3;",
         new_permission.is_admin(),
         person_id,
         project_id,
@@ -543,11 +560,7 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
                     .execute(&mut *tx)
                     .await
                     .map_err(|e| DBError::CannotUpdateFirstname(e, user.name.to_owned()))?;
-                    trace!(
-                        "User {} Firstname set to: {:?}",
-                        user.name,
-                        user.firstname,
-                    );
+                    trace!("User {} Firstname set to: {:?}", user.name, user.firstname,);
                 };
                 if row.personsurname != user.surname {
                     // update name
@@ -559,11 +572,7 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
                     .execute(&mut *tx)
                     .await
                     .map_err(|e| DBError::CannotUpdateSurname(e, user.name.to_owned()))?;
-                    trace!(
-                        "User {} Firstname set to: {:?}",
-                        user.name,
-                        user.firstname,
-                    );
+                    trace!("User {} Firstname set to: {:?}", user.name, user.firstname,);
                 };
             }
         };
@@ -616,7 +625,16 @@ mod test {
         };
         add_person(pool.clone(), person).await.unwrap();
         let ps = get_all_persons(pool.clone()).await.unwrap();
-        assert_eq!(ps.into_iter().next().unwrap(), Person::<HasID>::new(1, "John Doe".to_owned(), UserPermission::User, Some("Doe".to_owned()), Some("John".to_owned())));
+        assert_eq!(
+            ps.into_iter().next().unwrap(),
+            Person::<HasID>::new(
+                1,
+                "John Doe".to_owned(),
+                UserPermission::User,
+                Some("Doe".to_owned()),
+                Some("John".to_owned())
+            )
+        );
         Ok(())
     }
 
@@ -760,7 +778,7 @@ mod test {
             if member.person_id() == 1 {
                 assert_eq!(perm, UserPermission::User);
             };
-        };
+        }
         Ok(())
     }
 }

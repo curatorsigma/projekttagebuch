@@ -7,7 +7,6 @@ use tracing::trace;
 
 use super::{HasID, UserPermission, DBID};
 
-
 // todo have "view-perm" and person-status in this project separately
 #[derive(askama::Template)]
 #[template(path = "user/show.html")]
@@ -71,7 +70,8 @@ impl Person<HasID> {
 
     /// template the user-line for this user
     pub fn display<A>(&self, project_id: i32, view_permission: A, local_permission: A) -> String
-        where A: AsRef<UserPermission>,
+    where
+        A: AsRef<UserPermission>,
     {
         UserTemplate {
             person: self,
@@ -81,6 +81,8 @@ impl Person<HasID> {
             // But we want to pass it as owned
             local_permission: local_permission.as_ref().to_owned(),
             view_permission: view_permission.as_ref().to_owned(),
-        }.render().expect("static template")
+        }
+        .render()
+        .expect("static template")
     }
 }

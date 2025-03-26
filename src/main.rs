@@ -4,6 +4,7 @@ use config::Config;
 use tracing::{debug, error, info};
 use tracing_subscriber::{filter, fmt::format::FmtSpan, prelude::*, EnvFilter};
 
+mod actions;
 mod config;
 mod db;
 mod ldap;

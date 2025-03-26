@@ -43,7 +43,7 @@ struct ProjectDisplayHeaderOnly<'a> {
 }
 
 #[derive(askama::Template)]
-#[template(path = "project/with_users.html", escape="none")]
+#[template(path = "project/with_users.html", escape = "none")]
 struct ProjectDisplayWithUsers<'a> {
     project: &'a Project<HasID>,
     /// Permission of the person requesting the template
