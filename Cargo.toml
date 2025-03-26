@@ -6,13 +6,12 @@ authors = ["Jonathan Schleucher"]
 
 [dependencies]
 serde = { version = "1.0.208", features = ["derive"] }
-tokio = { version = "1.39.3", features = ["full"] }
+tokio = { version = "1.39.3", features = ["rt-multi-thread", "macros", "signal"] }
 sqlx = { version = "0.8.3", features = ["sqlite", "postgres", "runtime-tokio-rustls", "tls-rustls"] }
 time = { version = "0.3.36", features = ["formatting", "local-offset"] }
 tracing = { version = "0.1.40", features = ["attributes"] }
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.18", features = ["time", "fmt", "env-filter"] }
-chrono = "0.4.38"
 axum = { version="0.7.5", features = ["form"] }
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 axum-login = "0.16.0"

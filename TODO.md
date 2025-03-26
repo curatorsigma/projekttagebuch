@@ -8,16 +8,13 @@
 
 ## Matrix-Server aufsetzen
 
-## Refactor (Actions)
-- update permissions
-
 ## Matrix-Layer
-- Räume synchronisieren
 ### project/new
 - erzeuge einen neuen Raum in Matrix
 ### project/:projectid/new_member
-- refactored as action
+- füge eine Person dem Raum hinzu
 ### project/:projectid/remove_member
+- entferne eine Person aus dem Raum
 
 ## Output-Layer
 ### Rendern von Protokollen
