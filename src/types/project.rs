@@ -1,9 +1,11 @@
 //! The [`Project`] type used throughout
 
 use core::borrow::Borrow;
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 use askama::{Html, Template};
+
+use crate::config::Config;
 
 use super::{HasID, NoID, Person, UserPermission, DBID};
 
@@ -20,6 +22,8 @@ pub(crate) struct ProjectTemplate<'a> {
     project: &'a Project<HasID>,
     /// permission of the user requesting the template
     view_permission: UserPermission,
+    matrix_server: String,
+    element_server: String,
 }
 impl<I> Project<I>
 where
@@ -45,6 +49,8 @@ where
 #[template(path = "project/header_only.html")]
 struct ProjectDisplayHeaderOnly<'a> {
     project: &'a Project<HasID>,
+    element_server: String,
+    matrix_server: String,
 }
 
 #[derive(askama::Template)]
@@ -53,6 +59,8 @@ struct ProjectDisplayWithUsers<'a> {
     project: &'a Project<HasID>,
     /// Permission of the person requesting the template
     view_permission: UserPermission,
+    element_server: String,
+    matrix_server: String,
 }
 
 impl Project<HasID> {
@@ -65,17 +73,19 @@ impl Project<HasID> {
     }
 
     /// Render self, displaying only the header
-    pub(crate) fn display_header_only(&self) -> String {
-        ProjectDisplayHeaderOnly { project: self }
+    pub(crate) fn display_header_only(&self, matrix_server: String, element_server: String) -> String {
+        ProjectDisplayHeaderOnly { project: self, element_server, matrix_server }
             .render()
             .expect("static template")
     }
 
     /// Render self, displaying only the header
-    pub(crate) fn display_with_users(&self, view_permission: UserPermission) -> String {
+    pub(crate) fn display_with_users(&self, view_permission: UserPermission, matrix_server: String, element_server: String) -> String {
         ProjectDisplayWithUsers {
             project: self,
             view_permission,
+            element_server,
+            matrix_server,
         }
         .render()
         .expect("static template")

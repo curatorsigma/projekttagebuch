@@ -138,6 +138,8 @@ impl WebConfigData {
 pub(crate) struct MatrixConfigData {
     /// server name to which rooms and users are relative (example.com)
     servername: String,
+    /// Name of the associated webmatrix (we call it element for convenience)
+    element_servername: String,
     /// server url that actually hosts the matrix server (https://matrix.example.com)
     homeserver_url: String,
     /// username local part to log in with (exampleuser, NOT @exampleuser:example.com)
@@ -150,6 +152,8 @@ impl core::fmt::Debug for MatrixConfigData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MatrixConfigData")
             .field("homeserver_url", &self.homeserver_url)
+            .field("servername", &self.servername)
+            .field("element_servername", &self.element_servername)
             .field("username", &self.username)
             .field("password", &"[redacted]")
             .finish()
@@ -171,7 +175,7 @@ impl MatrixConfigData {
             .send()
             .await
             .map_err(ConfigError::MatrixLoginError)?;
-        Ok(MatrixClient::new(client, self.servername))
+        Ok(MatrixClient::new(client, self.servername, self.element_servername))
     }
 }
 

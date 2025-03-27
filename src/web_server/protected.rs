@@ -121,6 +121,8 @@ pub(super) mod get {
         username: String,
         projects: Vec<Project<HasID>>,
         permission: UserPermission,
+        matrix_server: String,
+        element_server: String,
     }
 
     #[derive(askama_axum::Template)]
@@ -176,6 +178,8 @@ pub(super) mod get {
                 username: person.name,
                 projects,
                 permission: person.global_permission,
+                matrix_server: config.matrix_client.matrix_server().to_owned(),
+                element_server: config.matrix_client.element_server().to_owned(),
             }
             .into_response(),
             // user exists in LDAP but does not yet exist in DB.
@@ -240,7 +244,7 @@ pub(super) mod get {
                     .into_response();
             }
         };
-        project.display_header_only().into_response()
+        project.display_header_only(config.matrix_client.matrix_server().to_owned(), config.matrix_client.element_server().to_owned()).into_response()
     }
 
     /// Get an individual project by ID, show its users.
@@ -293,7 +297,7 @@ pub(super) mod get {
             },
         };
         // template it with header_only
-        project.display_with_users(permission).into_response()
+        project.display_with_users(permission, config.matrix_client.matrix_server().to_owned(), config.matrix_client.element_server().to_owned()).into_response()
     }
 
     #[derive(askama_axum::Template)]
@@ -354,7 +358,7 @@ pub(super) mod post {
         match create_project(config.clone(), &requester, new_form.name).await {
             Ok(x) => {
                 // only global admins can create projects, so we template it with admin privileges
-                x.display_with_users(UserPermission::Admin).into_response()
+                x.display_with_users(UserPermission::Admin, config.matrix_client.matrix_server().to_owned(), config.matrix_client.element_server().to_owned()).into_response()
             }
             Err(CreateProjectError::RequesterHasNoPermission) => {
                 warn!(

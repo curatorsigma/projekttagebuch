@@ -67,14 +67,24 @@ pub(crate) struct MatrixClient {
     client: Client,
     last_sync_token: Option<String>,
     servername: String,
+    element_servername: String,
 }
 impl MatrixClient {
-    pub fn new(client: Client, servername: String) -> Self {
+    pub fn new(client: Client, servername: String, element_servername: String,) -> Self {
         Self {
             client,
             last_sync_token: None,
             servername,
+            element_servername,
         }
+    }
+
+    pub fn matrix_server(&self) -> &str {
+        &self.servername
+    }
+
+    pub fn element_server(&self) -> &str {
+        &self.element_servername
     }
 
     /// Sync once and set the new sync checkpoint if successfull
