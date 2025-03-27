@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE PersonProjectMap SET IsProjectAdmin = $1 WHERE PersonID = $2 AND ProjectID = $3;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "db0ecd0f2693636c70958cd507b52b09fe7ddffd8be3d702838667c951da5bc6"
+}

@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT PersonID, PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin, similarity($1, concat(PersonSurname, ' ', PersonFirstname))\n        FROM Person\n        ORDER BY similarity DESC\n        LIMIT 5;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "personid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "personname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "personsurname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "personfirstname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "isglobaladmin",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "similarity",
+        "type_info": "Float4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "39c98ed06edd54b18a3738932f75d4c63fa76c3ec2e4b664842decba8c823b3e"
+}

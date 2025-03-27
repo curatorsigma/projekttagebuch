@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE Person SET PersonSurname = $1 WHERE PersonName = $2;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "223eac62b40be90c27bd0b4d7833384391538d56fba99b236d01125a4376bb32"
+}
