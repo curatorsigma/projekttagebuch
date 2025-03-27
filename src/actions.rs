@@ -12,8 +12,8 @@ use tracing::{debug, info};
 use crate::{
     config::Config,
     db::{
-        add_project, add_project_prepare, get_person, get_project, remove_members,
-        remove_members_prepare, update_member_permission, update_project_members,
+        add_project_prepare, get_person, get_project,
+        remove_members_prepare, update_member_permission,
         update_project_members_prepare, DBError,
     },
     matrix::MatrixClientError,

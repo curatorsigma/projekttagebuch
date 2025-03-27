@@ -1,33 +1,22 @@
 //! The [`Project`] type used throughout
 
-use core::borrow::Borrow;
-use std::{borrow::Cow, sync::Arc};
+use std::borrow::Cow;
 
-use askama::{Html, Template};
+use askama::Template;
 
-use crate::config::Config;
 
-use super::{HasID, NoID, Person, UserPermission, DBID};
+use super::{HasID, NoID, Person, UserPermission, DbId};
 
 #[derive(Debug)]
-pub(crate) struct Project<I: DBID> {
+pub(crate) struct Project<I: DbId> {
     project_id: I,
     pub(crate) name: String,
     pub(crate) members: Vec<(Person<HasID>, UserPermission)>,
 }
 
-#[derive(Template)]
-#[template(path = "project/header_only.html")]
-pub(crate) struct ProjectTemplate<'a> {
-    project: &'a Project<HasID>,
-    /// permission of the user requesting the template
-    view_permission: UserPermission,
-    matrix_server: String,
-    element_server: String,
-}
 impl<I> Project<I>
 where
-    I: DBID,
+    I: DbId,
 {
     pub fn new<IdInto>(project_id: IdInto, name: String) -> Self
     where

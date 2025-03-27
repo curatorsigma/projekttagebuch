@@ -1,6 +1,6 @@
 //! Low level Database primitives
 
-use sqlx::{Executor, PgConnection, PgPool, Postgres, Row, Transaction};
+use sqlx::{PgConnection, PgPool, Postgres, Transaction};
 use tracing::{info, trace, warn};
 
 use crate::types::{HasID, NoID, Person, Project, UserPermission};
@@ -8,10 +8,8 @@ use crate::types::{HasID, NoID, Person, Project, UserPermission};
 #[derive(Debug)]
 pub(crate) enum DBError {
     // Engine or uncertain
-    CannotAuthenticate(sqlx::Error),
     CannotStartTransaction(sqlx::Error),
     CannotCommitTransaction(sqlx::Error),
-    CannotRollbackTransaction(sqlx::Error),
     CannotInsertPerson(sqlx::Error),
     CannotInsertProject(sqlx::Error),
     CannotInsertPPMap(sqlx::Error),
@@ -28,23 +26,16 @@ pub(crate) enum DBError {
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
-    ProjectNotUnique(i32),
     PPMapEntryHasNoCorrespondingProject(i32, i32),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::CannotAuthenticate(x) => {
-                write!(f, "Can not authenticate to DB: {x}")
-            }
             Self::CannotStartTransaction(x) => {
                 write!(f, "Unable to start transaction: {x}")
             }
             Self::CannotCommitTransaction(x) => {
                 write!(f, "Unable to commit transaction: {x}")
-            }
-            Self::CannotRollbackTransaction(x) => {
-                write!(f, "Unable to rollback transaction: {x}")
             }
             Self::CannotInsertPerson(x) => {
                 write!(f, "Unable to insert a person: {x}")
@@ -87,9 +78,6 @@ impl core::fmt::Display for DBError {
             }
             Self::ProjectDoesNotExist(x, y) => {
                 write!(f, "The project with id {x}, name {y} does not exist.")
-            }
-            Self::ProjectNotUnique(x) => {
-                write!(f, "The project with id {x} exists multiple times.")
             }
             Self::PPMapEntryHasNoCorrespondingProject(person, project) => {
                 write!(f, "Person {person} is mapped to Project {project} but that project does not exist.")
@@ -190,6 +178,7 @@ pub(crate) async fn add_project_prepare(
 }
 
 /// Add a new project
+#[allow(dead_code)]
 pub(crate) async fn add_project(
     pool: PgPool,
     project: Project<NoID>,
@@ -303,6 +292,7 @@ pub(crate) async fn remove_members_prepare<'a, 'b, 't>(
 /// remove the given persons from the given project
 ///
 /// Internally calls [`remove_members_prepare`] which implements the logic.
+#[allow(dead_code)]
 pub(crate) async fn remove_members(
     pool: PgPool,
     project_id: i32,
@@ -347,6 +337,7 @@ async fn add_members_in_transaction(
 }
 
 /// add the given persons to the project.
+#[allow(dead_code)]
 async fn add_members(
     pool: PgPool,
     project_id: i32,
@@ -423,11 +414,12 @@ pub(crate) async fn update_project_members_prepare<'a, 't>(
 /// Set(overwrite) the members of a project
 ///
 /// Internally calls [`update_project_members_prepare`] which implements the logic
+#[allow(dead_code)]
 pub(crate) async fn update_project_members(
     pool: PgPool,
     project: &Project<HasID>,
 ) -> Result<(), DBError> {
-    let mut tx = update_project_members_prepare(pool, project).await?;
+    let tx = update_project_members_prepare(pool, project).await?;
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
@@ -455,6 +447,7 @@ pub(crate) async fn update_member_permission(
 }
 
 /// Add a person.
+#[allow(dead_code)]
 async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>, DBError> {
     let mut tx = pool
         .begin()

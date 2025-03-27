@@ -9,34 +9,24 @@ pub(crate) use person::Person;
 mod project;
 pub(crate) use project::Project;
 
-trait DBID: core::fmt::Debug {}
+pub(crate) trait DbId: core::fmt::Debug {}
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub(crate) struct HasID {
     pub(crate) id: i32,
 }
-impl DBID for HasID {}
+impl DbId for HasID {}
 impl From<i32> for HasID {
     fn from(value: i32) -> Self {
         Self { id: value }
     }
 }
-impl HasID {
-    pub fn new(id: i32) -> Self {
-        Self { id }
-    }
-}
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct NoID {}
-impl DBID for NoID {}
+impl DbId for NoID {}
 impl From<()> for NoID {
-    fn from(value: ()) -> Self {
-        Self {}
-    }
-}
-impl Default for NoID {
-    fn default() -> Self {
+    fn from(_value: ()) -> Self {
         Self {}
     }
 }

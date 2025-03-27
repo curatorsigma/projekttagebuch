@@ -326,7 +326,6 @@ pub enum LDAPError {
     MultipleUsersWithSameUid(String),
     AttributeMissing(String),
     NotExactlyOneOfAttribute(String),
-    UserDoesNotExist(String),
 }
 impl std::fmt::Display for LDAPError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -354,9 +353,6 @@ impl std::fmt::Display for LDAPError {
             }
             Self::NotExactlyOneOfAttribute(x) => {
                 write!(f, "There is not exactly one value for attribute {x}")
-            }
-            Self::UserDoesNotExist(x) => {
-                write!(f, "The user with uid {x} does not exist.")
             }
         }
     }

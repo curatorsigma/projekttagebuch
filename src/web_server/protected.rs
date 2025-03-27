@@ -19,12 +19,6 @@ use crate::{
 
 use super::login::AuthSession;
 
-fn error_display(s: &str) -> String {
-    // we cannot control hx-swap separately for hx-target and hx-target-error
-    // so we swap outer-html and add the surrounding div all the time
-    format!("<div class=\"text-red-500 flex justify-center\" id=\"error_display\" _=\"on htmx:beforeSend from elsewhere set my innerHTML to ''\">{}</div>", s)
-}
-
 pub(crate) fn create_protected_router() -> Router {
     // todo redo routes
     // we want posts to be in their own /api subdir instead of web
@@ -80,20 +74,20 @@ async fn get_user_from_session(
             let error_uuid = Uuid::new_v4();
             // this should fix itself on the next LDAP->DB sync period
             warn!("Sending internal server error because a logged-in user did not exist. {error_uuid}");
-            return Err((
+            Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 InternalServerErrorTemplate { error_uuid },
             )
-                .into_response());
+                .into_response())
         }
         Err(e) => {
             let error_uuid = Uuid::new_v4();
             warn!("Sending internal Server error because I cannot get a user by name: {e}. {error_uuid}");
-            return Err((
+            Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 InternalServerErrorTemplate { error_uuid },
             )
-                .into_response());
+                .into_response())
         }
     }
 }
@@ -106,11 +100,11 @@ pub(super) mod get {
     };
 
     use super::*;
-    use core::borrow::Borrow;
+    
 
     use askama_axum::IntoResponse;
     use axum::{extract::Path, http::StatusCode};
-    use tracing::{error, info, trace, warn};
+    use tracing::{info, warn};
     use uuid::Uuid;
 
     use crate::config::Config;
@@ -120,7 +114,6 @@ pub(super) mod get {
     struct LandingAsUser {
         username: String,
         projects: Vec<Project<HasID>>,
-        permission: UserPermission,
         matrix_server: String,
         element_server: String,
     }
@@ -177,7 +170,6 @@ pub(super) mod get {
             Some(person) => LandingAsUser {
                 username: person.name,
                 projects,
-                permission: person.global_permission,
                 matrix_server: config.matrix_client.matrix_server().to_owned(),
                 element_server: config.matrix_client.element_server().to_owned(),
             }
@@ -329,8 +321,6 @@ pub(super) mod get {
         project_id: i32,
     }
     pub(super) async fn project_new_member_template(
-        auth_session: AuthSession,
-        Extension(config): Extension<Arc<Config>>,
         Path(project_id): Path<i32>,
     ) -> impl IntoResponse {
         ProjectNewMemberTemplate { project_id }.into_response()
@@ -343,7 +333,7 @@ pub(super) mod post {
     use askama_axum::IntoResponse;
     use axum::{extract::Path, http::StatusCode, Extension, Form};
     use serde::Deserialize;
-    use tracing::{error, info, trace, warn, Level};
+    use tracing::{warn, Level};
     use uuid::Uuid;
 
     use crate::{
@@ -352,11 +342,8 @@ pub(super) mod post {
             CreateProjectError, SetPermissionError,
         },
         config::Config,
-        db::{
-            add_project, get_person, get_persons_with_similar_name, get_project,
-            update_member_permission, update_project_members,
-        },
-        types::{HasID, NoID, Project, UserPermission},
+        db::get_persons_with_similar_name,
+        types::UserPermission,
         web_server::{
             login::AuthSession, protected::get_user_from_session, InternalServerErrorTemplate,
         },
@@ -508,6 +495,15 @@ pub(super) mod post {
         Extension(config): Extension<Arc<Config>>,
         Form(form): Form<UserSearchFormData>,
     ) -> impl IntoResponse {
+        // only logged-in users may search other users
+        let _user = match get_user_from_session(auth_session, config.clone()).await {
+            Ok(x) => x,
+            Err(response) => {
+                return response.into_response();
+            }
+        };
+
+
         // get users whith name similar to the form.username
         let persons = match get_persons_with_similar_name(config.pg_pool.clone(), &form.username)
             .await
@@ -613,16 +609,15 @@ pub(super) mod delete {
     use axum::{
         extract::{Path, Query},
         http::StatusCode,
-        Extension, Form,
+        Extension,
     };
     use serde::Deserialize;
-    use tracing::{info, warn};
+    use tracing::warn;
     use uuid::Uuid;
 
     use crate::{
         actions::{remove_member_from_project, RemoveMemberError},
         config::Config,
-        types::UserPermission,
         web_server::{login::AuthSession, InternalServerErrorTemplate},
     };
 
@@ -649,12 +644,7 @@ pub(super) mod delete {
         match remove_member_from_project(config.clone(), &requester, &form.username, project_id)
             .await
         {
-            Ok((new_member, project)) => {
-                let requester_is_now_admin = match project.local_permission_for_user(&requester) {
-                    Some(UserPermission::Admin) => true,
-                    Some(UserPermission::User) => requester.is_global_admin(),
-                    None => requester.is_global_admin(),
-                };
+            Ok((_, _)) => {
                 (StatusCode::OK, "").into_response()
             }
             Err(RemoveMemberError::ProjectDoesNotExist) => {

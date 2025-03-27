@@ -1,11 +1,9 @@
 //! The [`Person`] Type used throughout
 
-use core::borrow::Borrow;
 
 use askama::Template;
-use tracing::trace;
 
-use super::{HasID, UserPermission, DBID};
+use super::{HasID, UserPermission, DbId};
 
 // todo have "view-perm" and person-status in this project separately
 #[derive(askama::Template)]
@@ -25,7 +23,7 @@ struct UserTemplate<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct Person<I: DBID> {
+pub(crate) struct Person<I: DbId> {
     pub(crate) person_id: I,
     pub(crate) name: String,
     pub(crate) global_permission: UserPermission,
@@ -34,7 +32,7 @@ pub(crate) struct Person<I: DBID> {
 }
 impl<I> Person<I>
 where
-    I: DBID,
+    I: DbId,
 {
     pub fn new<IdInto>(
         person_id: IdInto,

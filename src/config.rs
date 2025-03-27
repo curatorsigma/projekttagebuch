@@ -52,9 +52,7 @@ impl std::error::Error for ConfigError {}
 #[derive(Debug, Deserialize)]
 struct ConfigData {
     log_level: String,
-    log_location: Option<String>,
     user_resync_interval: Option<u32>,
-    room_resync_interval: Option<u32>,
     ldap: LdapConfigData,
     db: DbConfigData,
     web: WebConfigData,
@@ -183,27 +181,6 @@ impl MatrixConfigData {
     }
 }
 
-struct DbConfig {
-    pool: Pool<Postgres>,
-}
-impl DbConfig {
-    async fn try_from_db_config_data(value: DbConfigData) -> Result<Self, ConfigError> {
-        // postgres settings
-        let url = format!(
-            "postgres://{}:{}@{}:{}/{}",
-            value.user, value.password, value.host, value.port, value.database
-        );
-        let pool = match sqlx::postgres::PgPool::connect(&url).await {
-            Ok(x) => x,
-            Err(e) => {
-                event!(Level::ERROR, "Could not connect to postgres: {e}");
-                return Err(ConfigError::PoolCreationError(e));
-            }
-        };
-        Ok(Self { pool })
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct WebConfig {
     pub(crate) bind_address: String,
@@ -231,9 +208,7 @@ async fn pg_pool_from_db_config_data(value: DbConfigData) -> Result<Pool<Postgre
 #[derive(Debug)]
 pub(crate) struct Config {
     pub(crate) log_level: String,
-    pub(crate) log_location: String,
     pub(crate) user_resync_interval: u32,
-    pub(crate) room_resync_interval: u32,
     pub(crate) ldap_backend: LDAPBackend,
     pub(crate) pg_pool: Pool<Postgres>,
     pub(crate) web_config: WebConfig,
@@ -279,11 +254,7 @@ impl Config {
 
         Ok(Self {
             log_level: config_data.log_level,
-            log_location: config_data
-                .log_location
-                .unwrap_or("/var/log/projekttagebuch".to_owned()),
             user_resync_interval: config_data.user_resync_interval.unwrap_or(10),
-            room_resync_interval: config_data.room_resync_interval.unwrap_or(10),
             ldap_backend,
             pg_pool,
             web_config,
