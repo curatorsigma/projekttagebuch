@@ -39,7 +39,10 @@ impl core::fmt::Display for MatrixClientError {
                 write!(f, "Unable to create room: {e}")
             }
             Self::RoomDoesNotExistAfterResolving(e) => {
-                write!(f, "Room alias was resolved, but the room does not exist anymore: {e}")
+                write!(
+                    f,
+                    "Room alias was resolved, but the room does not exist anymore: {e}"
+                )
             }
             Self::RoomDoesNotExist(e) => {
                 write!(f, "Room with this alias does not exist: {e}")
@@ -70,7 +73,7 @@ pub(crate) struct MatrixClient {
     element_servername: String,
 }
 impl MatrixClient {
-    pub fn new(client: Client, servername: String, element_servername: String,) -> Self {
+    pub fn new(client: Client, servername: String, element_servername: String) -> Self {
         Self {
             client,
             last_sync_token: None,
@@ -115,12 +118,27 @@ impl MatrixClient {
         let local_name = project.matrix_room_alias_local();
         let room_alias = RoomAliasId::parse(format!("#{local_name}:matrix.acidresden.de"))
             .map_err(MatrixClientError::CannotParseRoomAlias)?;
-        if !self.client.is_room_alias_available(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)? {
-            let room_id = self.client.resolve_room_alias(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)?.room_id;
+        if !self
+            .client
+            .is_room_alias_available(&room_alias)
+            .await
+            .map_err(MatrixClientError::CannotResolveAlias)?
+        {
+            let room_id = self
+                .client
+                .resolve_room_alias(&room_alias)
+                .await
+                .map_err(MatrixClientError::CannotResolveAlias)?
+                .room_id;
 
             if self.client.get_room(&room_id).is_none() {
-                tracing::error!("Room {} was just resolved but does not exist anymore.", room_alias);
-                return Err(MatrixClientError::RoomDoesNotExistAfterResolving(room_alias));
+                tracing::error!(
+                    "Room {} was just resolved but does not exist anymore.",
+                    room_alias
+                );
+                return Err(MatrixClientError::RoomDoesNotExistAfterResolving(
+                    room_alias,
+                ));
             }
         } else {
             // create a new room
@@ -134,7 +152,10 @@ impl MatrixClient {
                 .map_err(MatrixClientError::CannotGetUserIDs)?;
             request.room_alias_name = Some(local_name.to_string());
 
-            self.client.create_room(request).await.map_err(MatrixClientError::CannotCreateRoom)?;
+            self.client
+                .create_room(request)
+                .await
+                .map_err(MatrixClientError::CannotCreateRoom)?;
         };
         Ok(())
     }
@@ -151,13 +172,28 @@ impl MatrixClient {
         let local_name = project.matrix_room_alias_local();
         let room_alias = RoomAliasId::parse(format!("#{local_name}:matrix.acidresden.de"))
             .map_err(MatrixClientError::CannotParseRoomAlias)?;
-        let room = if !self.client.is_room_alias_available(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)? {
-            let room_id = self.client.resolve_room_alias(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)?.room_id;
+        let room = if !self
+            .client
+            .is_room_alias_available(&room_alias)
+            .await
+            .map_err(MatrixClientError::CannotResolveAlias)?
+        {
+            let room_id = self
+                .client
+                .resolve_room_alias(&room_alias)
+                .await
+                .map_err(MatrixClientError::CannotResolveAlias)?
+                .room_id;
 
             match self.client.get_room(&room_id) {
                 None => {
-                    tracing::error!("Room {} was just resolved but does not exist anymore.", room_alias);
-                    return Err(MatrixClientError::RoomDoesNotExistAfterResolving(room_alias));
+                    tracing::error!(
+                        "Room {} was just resolved but does not exist anymore.",
+                        room_alias
+                    );
+                    return Err(MatrixClientError::RoomDoesNotExistAfterResolving(
+                        room_alias,
+                    ));
                 }
                 Some(x) => x,
             }
@@ -165,9 +201,13 @@ impl MatrixClient {
             return Err(MatrixClientError::RoomDoesNotExist(room_alias));
         };
         // actually invite the new member
-        let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername)).map_err(MatrixClientError::CannotParseUserId)?;
+        let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername))
+            .map_err(MatrixClientError::CannotParseUserId)?;
         // check that we only invite users that are not already joined or invited
-        let already_in_room = room.get_member(&user_id).await.map_err(MatrixClientError::CannotCheckMembershipStatus)?;
+        let already_in_room = room
+            .get_member(&user_id)
+            .await
+            .map_err(MatrixClientError::CannotCheckMembershipStatus)?;
         match already_in_room {
             Some(ref member_obj) => {
                 match member_obj.membership() {
@@ -212,13 +252,28 @@ impl MatrixClient {
         let local_name = project.matrix_room_alias_local();
         let room_alias = RoomAliasId::parse(format!("#{local_name}:matrix.acidresden.de"))
             .map_err(MatrixClientError::CannotParseRoomAlias)?;
-        let room = if !self.client.is_room_alias_available(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)? {
-            let room_id = self.client.resolve_room_alias(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)?.room_id;
+        let room = if !self
+            .client
+            .is_room_alias_available(&room_alias)
+            .await
+            .map_err(MatrixClientError::CannotResolveAlias)?
+        {
+            let room_id = self
+                .client
+                .resolve_room_alias(&room_alias)
+                .await
+                .map_err(MatrixClientError::CannotResolveAlias)?
+                .room_id;
 
             match self.client.get_room(&room_id) {
                 None => {
-                    tracing::error!("Room {} was just resolved but does not exist anymore.", room_alias);
-                    return Err(MatrixClientError::RoomDoesNotExistAfterResolving(room_alias));
+                    tracing::error!(
+                        "Room {} was just resolved but does not exist anymore.",
+                        room_alias
+                    );
+                    return Err(MatrixClientError::RoomDoesNotExistAfterResolving(
+                        room_alias,
+                    ));
                 }
                 Some(x) => x,
             }
@@ -226,9 +281,13 @@ impl MatrixClient {
             return Err(MatrixClientError::RoomDoesNotExist(room_alias));
         };
         // actually remove the old member
-        let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername)).map_err(MatrixClientError::CannotParseUserId)?;
+        let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername))
+            .map_err(MatrixClientError::CannotParseUserId)?;
         // check that we only remove users that are actually in the room
-        let already_in_room = room.get_member(&user_id).await.map_err(MatrixClientError::CannotCheckMembershipStatus)?;
+        let already_in_room = room
+            .get_member(&user_id)
+            .await
+            .map_err(MatrixClientError::CannotCheckMembershipStatus)?;
         match already_in_room {
             Some(ref member_obj) => {
                 match member_obj.membership() {
@@ -250,7 +309,10 @@ impl MatrixClient {
                 return Ok(());
             }
         };
-        match room.kick_user(&user_id, Some("projekttagebuch Automatisierung")).await {
+        match room
+            .kick_user(&user_id, Some("projekttagebuch Automatisierung"))
+            .await
+        {
             Ok(()) => {
                 tracing::info!("Kicked {} from Matrix-Room {}", user_id, room_alias);
             }

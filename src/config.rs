@@ -175,7 +175,11 @@ impl MatrixConfigData {
             .send()
             .await
             .map_err(ConfigError::MatrixLoginError)?;
-        Ok(MatrixClient::new(client, self.servername, self.element_servername))
+        Ok(MatrixClient::new(
+            client,
+            self.servername,
+            self.element_servername,
+        ))
     }
 }
 

@@ -10,9 +10,14 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 use crate::{
-    config::Config, db::{
-        add_project, add_project_prepare, get_person, get_project, remove_members, remove_members_prepare, update_member_permission, update_project_members, update_project_members_prepare, DBError
-    }, matrix::MatrixClientError, types::{HasID, NoID, Person, Project, UserPermission}
+    config::Config,
+    db::{
+        add_project, add_project_prepare, get_person, get_project, remove_members,
+        remove_members_prepare, update_member_permission, update_project_members,
+        update_project_members_prepare, DBError,
+    },
+    matrix::MatrixClientError,
+    types::{HasID, NoID, Person, Project, UserPermission},
 };
 
 #[derive(Debug)]
@@ -69,7 +74,12 @@ pub(super) async fn add_member_to_project(
 ) -> Result<(Person<HasID>, Project<HasID>), AddMemberError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
-    let mut con = config.pg_pool.clone().acquire().await.map_err(|e| AddMemberError::DB(DBError::CannotStartTransaction(e)))?;
+    let mut con = config
+        .pg_pool
+        .clone()
+        .acquire()
+        .await
+        .map_err(|e| AddMemberError::DB(DBError::CannotStartTransaction(e)))?;
     let mut project = match get_project(&mut con, project_id).await {
         Ok(Some(x)) => x,
         Ok(None) => {
@@ -106,10 +116,15 @@ pub(super) async fn add_member_to_project(
 
     match update_project_members_prepare(config.pg_pool.clone(), &project).await {
         Ok(tx) => {
-            debug!("Prepared a transaction to add {} to {}. Now trying to add to Matrix...", new_member.name, project.name);
+            debug!(
+                "Prepared a transaction to add {} to {}. Now trying to add to Matrix...",
+                new_member.name, project.name
+            );
             // now try to make the deletion from Matrix
             let mut our_client = config.matrix_client.clone();
-            our_client.ensure_user_in_room(&new_member, &project).await?;
+            our_client
+                .ensure_user_in_room(&new_member, &project)
+                .await?;
             debug!("Successfully added {} to {} in Matrix. Now trying to commit the held DB transaction...", new_member.name, project.name);
             tx.commit()
                 .await
@@ -179,7 +194,12 @@ pub(super) async fn remove_member_from_project(
 ) -> Result<(Person<HasID>, Project<HasID>), RemoveMemberError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
-    let mut con = config.pg_pool.clone().acquire().await.map_err(|e| RemoveMemberError::DB(DBError::CannotStartTransaction(e)))?;
+    let mut con = config
+        .pg_pool
+        .clone()
+        .acquire()
+        .await
+        .map_err(|e| RemoveMemberError::DB(DBError::CannotStartTransaction(e)))?;
     let project = match get_project(&mut con, project_id).await {
         Ok(Some(x)) => x,
         Ok(None) => {
@@ -220,10 +240,15 @@ pub(super) async fn remove_member_from_project(
     .await
     {
         Ok((_num_deleted, tx)) => {
-            debug!("Prepared a transaction to remove {} from {}. Now trying to remove from Matrix...", remove_member.name, project.name);
+            debug!(
+                "Prepared a transaction to remove {} from {}. Now trying to remove from Matrix...",
+                remove_member.name, project.name
+            );
             // now try to make the deletion from Matrix
             let mut our_client = config.matrix_client.clone();
-            our_client.ensure_user_not_in_room(&remove_member, &project).await?;
+            our_client
+                .ensure_user_not_in_room(&remove_member, &project)
+                .await?;
             debug!("Successfully removed {} from {} in Matrix. Now trying to commit the held DB transaction...", remove_member.name, project.name);
             tx.commit()
                 .await
@@ -278,7 +303,12 @@ pub async fn set_member_permission(
 ) -> Result<(Person<HasID>, Project<HasID>), SetPermissionError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
-    let mut con = config.pg_pool.clone().acquire().await.map_err(|e| SetPermissionError::DB(DBError::CannotStartTransaction(e)))?;
+    let mut con = config
+        .pg_pool
+        .clone()
+        .acquire()
+        .await
+        .map_err(|e| SetPermissionError::DB(DBError::CannotStartTransaction(e)))?;
     let project = match get_project(&mut con, project_id).await {
         Ok(Some(x)) => x,
         Ok(None) => {
@@ -327,9 +357,7 @@ pub async fn set_member_permission(
             );
             Ok((change_member, project))
         }
-        Err(e) => {
-            Err(SetPermissionError::DB(e))
-        }
+        Err(e) => Err(SetPermissionError::DB(e)),
     }
 }
 
@@ -373,9 +401,15 @@ pub async fn create_project(
 
     match add_project_prepare(config.pg_pool.clone(), project).await {
         Ok((tx, idd_project)) => {
-            debug!("Prepared a transaction to add project {}. Now trying to create in Matrix...", idd_project.name);
+            debug!(
+                "Prepared a transaction to add project {}. Now trying to create in Matrix...",
+                idd_project.name
+            );
             let mut our_client = config.matrix_client.clone();
-            our_client.ensure_room_exists(&idd_project).await.map_err(CreateProjectError::Matrix)?;
+            our_client
+                .ensure_room_exists(&idd_project)
+                .await
+                .map_err(CreateProjectError::Matrix)?;
             debug!("Successfully added project {} in Matrix. Now trying to commit the held DB transaction...", idd_project.name);
             tx.commit()
                 .await
@@ -389,8 +423,6 @@ pub async fn create_project(
             // then return the new project
             Ok(idd_project)
         }
-        Err(e) => {
-            Err(CreateProjectError::DB(e))
-        }
+        Err(e) => Err(CreateProjectError::DB(e)),
     }
 }

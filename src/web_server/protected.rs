@@ -216,8 +216,14 @@ pub(super) mod get {
             }
         };
 
-        let mut con = match config.pg_pool.clone().acquire().await.map_err(DBError::CannotStartTransaction) {
-            Ok(x) => { x }
+        let mut con = match config
+            .pg_pool
+            .clone()
+            .acquire()
+            .await
+            .map_err(DBError::CannotStartTransaction)
+        {
+            Ok(x) => x,
             Err(e) => {
                 let error_uuid = Uuid::new_v4();
                 warn!("Sending internal server error because I cannot start a transaction: {e}. {error_uuid}");
@@ -244,7 +250,12 @@ pub(super) mod get {
                     .into_response();
             }
         };
-        project.display_header_only(config.matrix_client.matrix_server().to_owned(), config.matrix_client.element_server().to_owned()).into_response()
+        project
+            .display_header_only(
+                config.matrix_client.matrix_server().to_owned(),
+                config.matrix_client.element_server().to_owned(),
+            )
+            .into_response()
     }
 
     /// Get an individual project by ID, show its users.
@@ -260,8 +271,14 @@ pub(super) mod get {
             }
         };
 
-        let mut con = match config.pg_pool.clone().acquire().await.map_err(DBError::CannotStartTransaction) {
-            Ok(x) => { x }
+        let mut con = match config
+            .pg_pool
+            .clone()
+            .acquire()
+            .await
+            .map_err(DBError::CannotStartTransaction)
+        {
+            Ok(x) => x,
             Err(e) => {
                 let error_uuid = Uuid::new_v4();
                 warn!("Sending internal server error because I cannot start a transaction: {e}. {error_uuid}");
@@ -297,7 +314,13 @@ pub(super) mod get {
             },
         };
         // template it with header_only
-        project.display_with_users(permission, config.matrix_client.matrix_server().to_owned(), config.matrix_client.element_server().to_owned()).into_response()
+        project
+            .display_with_users(
+                permission,
+                config.matrix_client.matrix_server().to_owned(),
+                config.matrix_client.element_server().to_owned(),
+            )
+            .into_response()
     }
 
     #[derive(askama_axum::Template)]
@@ -325,7 +348,8 @@ pub(super) mod post {
 
     use crate::{
         actions::{
-            add_member_to_project, create_project, set_member_permission, AddMemberError, CreateProjectError, SetPermissionError
+            add_member_to_project, create_project, set_member_permission, AddMemberError,
+            CreateProjectError, SetPermissionError,
         },
         config::Config,
         db::{
@@ -358,7 +382,12 @@ pub(super) mod post {
         match create_project(config.clone(), &requester, new_form.name).await {
             Ok(x) => {
                 // only global admins can create projects, so we template it with admin privileges
-                x.display_with_users(UserPermission::Admin, config.matrix_client.matrix_server().to_owned(), config.matrix_client.element_server().to_owned()).into_response()
+                x.display_with_users(
+                    UserPermission::Admin,
+                    config.matrix_client.matrix_server().to_owned(),
+                    config.matrix_client.element_server().to_owned(),
+                )
+                .into_response()
             }
             Err(CreateProjectError::RequesterHasNoPermission) => {
                 warn!(

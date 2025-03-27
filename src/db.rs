@@ -198,12 +198,19 @@ pub(crate) async fn add_project(
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
-    info!("Created new project {} with {} users.", idd_project.name, idd_project.members.len());
+    info!(
+        "Created new project {} with {} users.",
+        idd_project.name,
+        idd_project.members.len()
+    );
     Ok(idd_project)
 }
 
 /// Get a project from known ID
-pub(crate) async fn get_project(con: &mut PgConnection, id: i32) -> Result<Option<Project<HasID>>, DBError> {
+pub(crate) async fn get_project(
+    con: &mut PgConnection,
+    id: i32,
+) -> Result<Option<Project<HasID>>, DBError> {
     // first get all projects (required if projects are empty)
     let rows = sqlx::query!(
         "SELECT ProjectID, ProjectName FROM Project WHERE ProjectID = $1;",
@@ -271,7 +278,7 @@ pub(crate) async fn get_project(con: &mut PgConnection, id: i32) -> Result<Optio
 pub(crate) async fn remove_members_prepare<'a, 'b, 't>(
     pool: PgPool,
     project_id: i32,
-    members_to_remove: &'a[&'b Person<HasID>],
+    members_to_remove: &'a [&'b Person<HasID>],
 ) -> Result<(i64, Transaction<'t, Postgres>), DBError> {
     let mut tx = pool
         .begin()
@@ -339,7 +346,6 @@ async fn add_members_in_transaction(
     Ok(())
 }
 
-
 /// add the given persons to the project.
 async fn add_members(
     pool: PgPool,
@@ -372,12 +378,13 @@ pub(crate) async fn update_project_members_prepare<'a, 't>(
         .await
         .map_err(DBError::CannotStartTransaction)?;
 
-    let old_project = get_project(&mut *tx, project.project_id())
-        .await?
-        .ok_or(DBError::ProjectDoesNotExist(
-            project.project_id(),
-            project.name.clone(),
-        ))?;
+    let old_project =
+        get_project(&mut *tx, project.project_id())
+            .await?
+            .ok_or(DBError::ProjectDoesNotExist(
+                project.project_id(),
+                project.name.clone(),
+            ))?;
 
     let members_to_remove = old_project
         .members
@@ -404,7 +411,8 @@ pub(crate) async fn update_project_members_prepare<'a, 't>(
         .collect::<Vec<_>>();
 
     // delete stale members
-    let (_num_deleted, mut tx) = remove_members_prepare(pool.clone(), project.project_id(), &members_to_remove).await?;
+    let (_num_deleted, mut tx) =
+        remove_members_prepare(pool.clone(), project.project_id(), &members_to_remove).await?;
 
     // add new members
     add_members_in_transaction(&mut *tx, project.project_id(), &members_to_add).await?;
@@ -722,7 +730,9 @@ mod test {
         let persons = vec![(&adam, &UserPermission::User)];
         add_members(pool.clone(), project_id, &persons).await?;
 
-        let project = get_project(&mut pool.clone().acquire().await.unwrap(), project_id).await?.unwrap();
+        let project = get_project(&mut pool.clone().acquire().await.unwrap(), project_id)
+            .await?
+            .unwrap();
         assert_eq!(project.members.len(), 3);
         Ok(())
     }
@@ -740,7 +750,9 @@ mod test {
         let persons = vec![&adam];
         remove_members(pool.clone(), project_id, &persons).await?;
 
-        let project = get_project(&mut pool.clone().acquire().await.unwrap(), project_id).await?.unwrap();
+        let project = get_project(&mut pool.clone().acquire().await.unwrap(), project_id)
+            .await?
+            .unwrap();
         assert_eq!(project.members.len(), 1);
         Ok(())
     }
@@ -781,7 +793,9 @@ mod test {
 
         update_project_members(pool.clone(), &basil_1).await?;
 
-        let project = get_project(&mut pool.clone().acquire().await.unwrap(), project_id).await?.unwrap();
+        let project = get_project(&mut pool.clone().acquire().await.unwrap(), project_id)
+            .await?
+            .unwrap();
         assert_eq!(project.members.len(), 3);
 
         Ok(())
@@ -822,7 +836,9 @@ mod test {
     async fn test_update_member_permission(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         update_member_permission(pool.clone(), 1, 1, UserPermission::User).await?;
 
-        let res = get_project(&mut pool.clone().acquire().await.unwrap(), 1).await?.unwrap();
+        let res = get_project(&mut pool.clone().acquire().await.unwrap(), 1)
+            .await?
+            .unwrap();
         for (member, perm) in res.members {
             if member.person_id() == 1 {
                 assert_eq!(perm, UserPermission::User);

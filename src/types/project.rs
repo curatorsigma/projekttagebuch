@@ -73,14 +73,27 @@ impl Project<HasID> {
     }
 
     /// Render self, displaying only the header
-    pub(crate) fn display_header_only(&self, matrix_server: String, element_server: String) -> String {
-        ProjectDisplayHeaderOnly { project: self, element_server, matrix_server }
-            .render()
-            .expect("static template")
+    pub(crate) fn display_header_only(
+        &self,
+        matrix_server: String,
+        element_server: String,
+    ) -> String {
+        ProjectDisplayHeaderOnly {
+            project: self,
+            element_server,
+            matrix_server,
+        }
+        .render()
+        .expect("static template")
     }
 
     /// Render self, displaying only the header
-    pub(crate) fn display_with_users(&self, view_permission: UserPermission, matrix_server: String, element_server: String) -> String {
+    pub(crate) fn display_with_users(
+        &self,
+        view_permission: UserPermission,
+        matrix_server: String,
+        element_server: String,
+    ) -> String {
         ProjectDisplayWithUsers {
             project: self,
             view_permission,
