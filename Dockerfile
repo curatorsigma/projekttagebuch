@@ -1,5 +1,5 @@
 FROM rust:1.83-alpine AS builder
-RUN apk add --no-cache build-base openssl-dev
+RUN apk add --no-cache build-base
 WORKDIR /usr/src/projekttagebuch
 COPY . .
 RUN cargo build --release
