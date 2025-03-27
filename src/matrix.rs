@@ -66,12 +66,14 @@ impl std::error::Error for MatrixClientError {}
 pub(crate) struct MatrixClient {
     client: Client,
     last_sync_token: Option<String>,
+    servername: String,
 }
 impl MatrixClient {
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: Client, servername: String) -> Self {
         Self {
             client,
             last_sync_token: None,
+            servername,
         }
     }
 
@@ -97,6 +99,7 @@ impl MatrixClient {
         &mut self,
         project: &Project<HasID>,
     ) -> Result<(), MatrixClientError> {
+        self.do_sync().await?;
 
         // check if the room already exists
         let local_name = project.matrix_room_alias_local();
@@ -105,12 +108,9 @@ impl MatrixClient {
         if !self.client.is_room_alias_available(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)? {
             let room_id = self.client.resolve_room_alias(&room_alias).await.map_err(MatrixClientError::CannotResolveAlias)?.room_id;
 
-            match self.client.get_room(&room_id) {
-                None => {
-                    tracing::error!("Room {} was just resolved but does not exist anymore.", room_alias);
-                    return Err(MatrixClientError::RoomDoesNotExistAfterResolving(room_alias));
-                }
-                Some(_) => {},
+            if self.client.get_room(&room_id).is_none() {
+                tracing::error!("Room {} was just resolved but does not exist anymore.", room_alias);
+                return Err(MatrixClientError::RoomDoesNotExistAfterResolving(room_alias));
             }
         } else {
             // create a new room
@@ -119,7 +119,7 @@ impl MatrixClient {
             request.invite = project
                 .members
                 .iter()
-                .map(|m| format!("@{}:{}", m.0.name, self.client.homeserver()).parse())
+                .map(|m| format!("@{}:{}", m.0.name, self.servername).parse())
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(MatrixClientError::CannotGetUserIDs)?;
             request.room_alias_name = Some(local_name.to_string());
@@ -135,6 +135,8 @@ impl MatrixClient {
         person: &Person<HasID>,
         project: &Project<HasID>,
     ) -> Result<(), MatrixClientError> {
+        self.do_sync().await?;
+
         // check if the room already exists
         let local_name = project.matrix_room_alias_local();
         let room_alias = RoomAliasId::parse(format!("#{local_name}:matrix.acidresden.de"))
@@ -153,7 +155,7 @@ impl MatrixClient {
             return Err(MatrixClientError::RoomDoesNotExist(room_alias));
         };
         // actually invite the new member
-        let user_id = UserId::parse(format!("@{}:{}", person.name, self.client.homeserver())).map_err(MatrixClientError::CannotParseUserId)?;
+        let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername)).map_err(MatrixClientError::CannotParseUserId)?;
         // check that we only invite users that are not already joined or invited
         let already_in_room = room.get_member(&user_id).await.map_err(MatrixClientError::CannotCheckMembershipStatus)?;
         match already_in_room {
@@ -194,6 +196,8 @@ impl MatrixClient {
         person: &Person<HasID>,
         project: &Project<HasID>,
     ) -> Result<(), MatrixClientError> {
+        self.do_sync().await?;
+
         // check if the room already exists
         let local_name = project.matrix_room_alias_local();
         let room_alias = RoomAliasId::parse(format!("#{local_name}:matrix.acidresden.de"))
@@ -212,7 +216,7 @@ impl MatrixClient {
             return Err(MatrixClientError::RoomDoesNotExist(room_alias));
         };
         // actually remove the old member
-        let user_id = UserId::parse(format!("@{}:{}", person.name, self.client.homeserver())).map_err(MatrixClientError::CannotParseUserId)?;
+        let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername)).map_err(MatrixClientError::CannotParseUserId)?;
         // check that we only remove users that are actually in the room
         let already_in_room = room.get_member(&user_id).await.map_err(MatrixClientError::CannotCheckMembershipStatus)?;
         match already_in_room {

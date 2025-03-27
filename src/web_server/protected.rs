@@ -321,7 +321,7 @@ pub(super) mod post {
 
     use crate::{
         actions::{
-            add_member_to_project, set_member_permission, AddMemberError, SetPermissionError,
+            add_member_to_project, create_project, set_member_permission, AddMemberError, CreateProjectError, SetPermissionError
         },
         config::Config,
         db::{
@@ -345,59 +345,36 @@ pub(super) mod post {
         Extension(config): Extension<Arc<Config>>,
         Form(new_form): Form<NewProjectData>,
     ) -> impl IntoResponse {
-        let user = if let Some(x) = auth_session.user {
-            x
-        } else {
-            let error_uuid = Uuid::new_v4();
-            warn!("Sending internal server error because there is no user in the auth session. uuid: {error_uuid}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                InternalServerErrorTemplate { error_uuid },
-            )
-                .into_response();
-        };
-
-        let user_obj = match get_person(config.pg_pool.clone(), &user.username).await {
-            Ok(Some(x)) => x,
-            Ok(None) => {
-                let error_uuid = Uuid::new_v4();
-                // this should fix itself on the next LDAP->DB sync period
-                warn!("Sending internal server error because a logged-in user did not exist. {error_uuid}");
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    InternalServerErrorTemplate { error_uuid },
-                )
-                    .into_response();
-            }
+        let requester = match get_user_from_session(auth_session, config.clone()).await {
+            Ok(x) => x,
             Err(e) => {
-                let error_uuid = Uuid::new_v4();
-                warn!("Sending internal Server error because I cannot get a user by name: {e}. {error_uuid}");
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    InternalServerErrorTemplate { error_uuid },
-                )
-                    .into_response();
+                return e.into_response();
             }
         };
-
-        if user_obj.global_permission == UserPermission::User {
-            warn!(
-                "User {} tried to create a project, but is not a global admin.",
-                user.username
-            );
-            return StatusCode::UNAUTHORIZED.into_response();
-        };
-
-        // create the new project
-        let project = Project::<NoID>::new((), new_form.name);
-        match add_project(config.pg_pool.clone(), project).await {
+        match create_project(config.clone(), &requester, new_form.name).await {
             Ok(x) => {
                 // only global admins can create projects, so we template it with admin privileges
                 x.display_with_users(UserPermission::Admin).into_response()
             }
-            Err(e) => {
+            Err(CreateProjectError::RequesterHasNoPermission) => {
+                warn!(
+                    "User {} tried to create a project, but is not a global admin.",
+                    requester.name,
+                );
+                return StatusCode::UNAUTHORIZED.into_response();
+            }
+            Err(CreateProjectError::DB(e)) => {
                 let error_uuid = Uuid::new_v4();
                 warn!("Sending internal Server error because I cannot insert a new project: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response();
+            }
+            Err(CreateProjectError::Matrix(e)) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because communication with Matrix failed while adding a new project: {e}. {error_uuid}");
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     InternalServerErrorTemplate { error_uuid },

@@ -11,8 +11,8 @@ use tracing::{debug, info};
 
 use crate::{
     config::Config, db::{
-        get_person, get_project, remove_members, remove_members_prepare, update_member_permission, update_project_members, update_project_members_prepare, DBError
-    }, matrix::MatrixClientError, types::{HasID, Person, Project, UserPermission}
+        add_project, add_project_prepare, get_person, get_project, remove_members, remove_members_prepare, update_member_permission, update_project_members, update_project_members_prepare, DBError
+    }, matrix::MatrixClientError, types::{HasID, NoID, Person, Project, UserPermission}
 };
 
 #[derive(Debug)]
@@ -106,7 +106,7 @@ pub(super) async fn add_member_to_project(
 
     match update_project_members_prepare(config.pg_pool.clone(), &project).await {
         Ok(tx) => {
-            debug!("Prepared a transaction to add {} to {}. Now trying to remove from Matrix...", new_member.name, project.name);
+            debug!("Prepared a transaction to add {} to {}. Now trying to add to Matrix...", new_member.name, project.name);
             // now try to make the deletion from Matrix
             let mut our_client = config.matrix_client.clone();
             our_client.ensure_user_in_room(&new_member, &project).await?;
@@ -325,10 +325,72 @@ pub async fn set_member_permission(
                 "Updated permission for {} in {}; is now {}; request made by {}.",
                 change_member.name, project.name, new_permission, requester.name
             );
-            return Ok((change_member, project));
+            Ok((change_member, project))
         }
         Err(e) => {
-            return Err(SetPermissionError::DB(e));
+            Err(SetPermissionError::DB(e))
+        }
+    }
+}
+
+/// The errors that can occur while trying to create a project.
+#[derive(Debug)]
+pub(super) enum CreateProjectError {
+    /// Name of the Project the requester wanted to add to
+    /// (the caller does not know how that project is called yet)
+    RequesterHasNoPermission,
+    DB(DBError),
+    Matrix(MatrixClientError),
+}
+impl core::fmt::Display for CreateProjectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RequesterHasNoPermission => {
+                write!(f, "The requester does not have the necessary permissions.")
+            }
+            Self::DB(e) => {
+                write!(f, "The DB returned this error: {e}.")
+            }
+            Self::Matrix(e) => {
+                write!(f, "Error while communicating with matrix server: {e}")
+            }
+        }
+    }
+}
+impl std::error::Error for CreateProjectError {}
+
+pub async fn create_project(
+    config: Arc<Config>,
+    requester: &Person<HasID>,
+    new_project_name: String,
+) -> Result<Project<HasID>, CreateProjectError> {
+    if requester.global_permission != UserPermission::Admin {
+        return Err(CreateProjectError::RequesterHasNoPermission);
+    };
+
+    // create the new project
+    let project = Project::<NoID>::new((), new_project_name);
+
+    match add_project_prepare(config.pg_pool.clone(), project).await {
+        Ok((tx, idd_project)) => {
+            debug!("Prepared a transaction to add project {}. Now trying to create in Matrix...", idd_project.name);
+            let mut our_client = config.matrix_client.clone();
+            our_client.ensure_room_exists(&idd_project).await.map_err(CreateProjectError::Matrix)?;
+            debug!("Successfully added project {} in Matrix. Now trying to commit the held DB transaction...", idd_project.name);
+            tx.commit()
+                .await
+                .map_err(|e| CreateProjectError::DB(DBError::CannotCommitTransaction(e)))?;
+
+            // both matrix and DB have agreed that all is well
+            info!(
+                "Created Project {}; request made by {}.",
+                idd_project.name, requester.name
+            );
+            // then return the new project
+            Ok(idd_project)
+        }
+        Err(e) => {
+            Err(CreateProjectError::DB(e))
         }
     }
 }

@@ -157,11 +157,10 @@ pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> 
     Ok(result)
 }
 
-/// Add a new project
-pub(crate) async fn add_project(
+pub(crate) async fn add_project_prepare(
     pool: PgPool,
     project: Project<NoID>,
-) -> Result<Project<HasID>, DBError> {
+) -> Result<(Transaction<'static, Postgres>, Project<HasID>), DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -187,9 +186,19 @@ pub(crate) async fn add_project(
             .map_err(DBError::CannotInsertPPMap)?;
     }
 
+    Ok((tx, idd_project))
+}
+
+/// Add a new project
+pub(crate) async fn add_project(
+    pool: PgPool,
+    project: Project<NoID>,
+) -> Result<Project<HasID>, DBError> {
+    let (tx, idd_project) = add_project_prepare(pool, project).await?;
     tx.commit()
         .await
         .map_err(DBError::CannotCommitTransaction)?;
+    info!("Created new project {} with {} users.", idd_project.name, idd_project.members.len());
     Ok(idd_project)
 }
 
