@@ -7,7 +7,7 @@ authors = ["Jonathan Schleucher"]
 [dependencies]
 serde = { version = "1.0.208", features = ["derive"] }
 tokio = { version = "1.39.3", features = ["rt-multi-thread", "macros", "signal"] }
-sqlx = { version = "0.8.3", features = ["sqlite", "postgres", "runtime-tokio-rustls", "tls-rustls"] }
+sqlx = { version = "0.8.3", features = ["sqlite", "postgres", "runtime-tokio-rustls", "tls-rustls"], default-features = false }
 time = { version = "0.3.36", features = ["formatting", "local-offset"] }
 tracing = { version = "0.1.40", features = ["attributes"] }
 tracing-appender = "0.2.3"
@@ -32,7 +32,7 @@ async-trait = "0.1.85"
 toml = "0.8.19"
 # used only to force it to bundle for a statically linked libsqlite
 rusqlite = { version = "0.32.1", features = ["bundled"] }
-matrix-sdk = { version = "0.10.0" }
+matrix-sdk = { version = "0.10.0", default-features = false, features = ["rustls-tls"] }
 urlencoding = "2.1.3"
 
 [dev-dependencies]
