@@ -1,46 +1,33 @@
-# available levels: TRACE, DEBUG, INFO, WARN, ERROR
 log_level = "TRACE"
-# file name is projekttagebuch.log
-log_location = "/var/log/projekttagebuch/"
-
-# users are resynced from LDAP after this interval (in min)
-# NOTE: global admin privileges are not stored in the DB and queried directly from LDAP whenever they are relevant
-# OPTIONAL, default 10
-user_resync_interval = 10
-# Matrix-rooms are resynced from the DB after this interval (in min)
-# NOTE: When users are added/removed from a Project, they are immediately added/removed from the matrix room
-# This resync means that users who manually joined/left the matrix room are automatically kicked/readded at this interval
-# OPTIONAL, default 10
-room_resync_interval = 10
 
 [ldap]
 # LDAPv3/TLS is ALWAYS used. Other setups are not supported.
-server_host = "ldaps.exmple.com"
-server_port = 636
+server_host = "redacted"
+server_port = 7636
 # Bind to the Server as this DN ...
-bind_dn = "TODO"
+bind_dn = "uid=projekttagebuch,cn=users,dc=redacted"
 # ... and this password
 bind_password = "NOT_THE_PASSWORD"
 
 # LDAP Location to look for users at
-user_base_dn = "cn=users,dc=exmple,dc=com"
+user_base_dn = "cn=users,dc=redacted"
 # NOTE: Users are identified by their uid. The users dn is assumed to be "uid=<user-name>,<user_location>"
 
 # available users are results of this filter applied to "<user_location>"
-user_filter = "memberOf=cn=projekttagebuch,dc=example,dc=com"
+user_filter = "memberOf=cn=projekttagebuch,cn=groups,dc=redacted"
 
 # LDAP filter to find out whether a user has write access.
 # {username} will be replaced with the users name
 # Will see if "&(uid=<user-name>)(&(<write_access_filter>)(<user_filter>))" at base "<user_location>" returns exactly 1 result
-write_access_filter = "memberOf=cn=projekttagebuch_admins,dc=example,dc=com"
+write_access_filter = "memberOf=cn=projekttagebuch_admins,cn=groups,dc=redacted"
 
 [db]
-host = "postgresql.example.com"
+host = "192.168.20.246"
 port = 5432
 database = "projekttagebuch"
 # user needs admin permissions for the database
 user = "projekttagebuch"
-password = "NOT_THE_PASSWORD"
+password = "redacted"
 
 # TLS used by the web-server
 # HTTP w/o TLS is not supported, all communications are always HTTPS
@@ -49,6 +36,16 @@ bind_address = "127.0.0.1"
 # this port will ONLY 302 into the TLS port
 bind_port = 8080
 bind_port_tls = 8443
-cert_file = "/etc/ssl/projekttagebuch/projekttagebuch.cert"
-key_file = "/etc/ssl/projekttagebuch/projekttagebuch.key"
+cert_file = "/etc/ssl/projekttagebuch/cert.pem"
+key_file = "/etc/ssl/projekttagebuch/key.pem"
+
+[matrix]
+# The url on which the matrix server is reachable
+homeserver_url = "https://matrix.redacted"
+# the servername (i.e. the global part of @user:servername)
+servername = "matrix.redacted"
+# the url for the element server (https required)
+element_servername = "webmatrix.redacted"
+username = "testuser"
+password = "NOT_THE_PASSWORD"
 
