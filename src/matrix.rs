@@ -151,6 +151,7 @@ impl MatrixClient {
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(MatrixClientError::CannotGetUserIDs)?;
             request.room_alias_name = Some(local_name.to_string());
+            request.name = Some(project.name.clone());
 
             self.client
                 .create_room(request)
