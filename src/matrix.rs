@@ -2,6 +2,7 @@
 
 use matrix_sdk::ruma::{OwnedRoomAliasId, RoomAliasId, UserId};
 use matrix_sdk::{config::SyncSettings, Client};
+use tracing::warn;
 
 use crate::types::HasID;
 use crate::types::Person;
@@ -19,6 +20,8 @@ pub enum MatrixClientError {
     CannotParseUserId(matrix_sdk::IdParseError),
     CannotAddUser(matrix_sdk::Error),
     CannotCheckMembershipStatus(matrix_sdk::Error),
+    UserIsBanned,
+    StateUnknown,
 }
 impl core::fmt::Display for MatrixClientError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -55,6 +58,12 @@ impl core::fmt::Display for MatrixClientError {
             }
             Self::CannotCheckMembershipStatus(e) => {
                 write!(f, "Unable to check membership status for a user: {e}")
+            }
+            Self::UserIsBanned => {
+                write!(f, "The user is banned from a room we want to invite them into.")
+            }
+            Self::StateUnknown => {
+                write!(f, "The MembershipState of a user is of a type that is not documented.")
             }
         }
     }
@@ -219,9 +228,21 @@ impl MatrixClient {
                     matrix_sdk::ruma::events::room::member::MembershipState::Knock => {
                         // User has already knocked => invite
                     }
-                    _ => {
-                        // there is nothing more we can do - user has to accept the invite or is banned
+                    matrix_sdk::ruma::events::room::member::MembershipState::Leave => {
+                        // the user was kicked or has left before => reinvite
+                    }
+                    matrix_sdk::ruma::events::room::member::MembershipState::Ban => {
+                        warn!("Trying to invite user {} to room {}, but they are banned from that room.", user_id, room_alias);
+                        return Err(MatrixClientError::UserIsBanned);
+                    }
+                    matrix_sdk::ruma::events::room::member::MembershipState::Invite => {
+                        warn!("Trying to invite user {} to room {}, but they are already invited. Ignoring.", user_id, room_alias);
                         return Ok(());
+                    }
+                    // evil evil matrix_sdk has marked this enum as non-exhaustive
+                    _ => {
+                        warn!("Hit an unknown type for matrix_sdk::ruma::events::room::member::MembershipState.");
+                        return Err(MatrixClientError::StateUnknown);
                     }
                 }
             }
