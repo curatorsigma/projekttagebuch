@@ -1,7 +1,19 @@
   <div id="user-{{project_id}}-{{person.db_id()}}" class="flex justify-end border-1 border-t-0 border-r-0 border-l-0 pt-1 pr-1 pb-1 border-gray-400 dark:border-gray-600">
     <div class="flex w-full translate-y-2 justify-start">
       <div class="w-6"></div>
-      <div>{{ person.name }}</div>
+      {% if let Some(fn) = person.firstname %}
+      	{% if let Some(sn) = person.surname %}
+      		<div>{{ fn }} {{ sn }} ({{ person.name }})</div>
+	{% else %}
+      		<div>{{ fn }} ({{ person.name }})</div>
+	{% endif %}
+      {% else %}
+      	{% if let Some(sn) = person.surname %}
+      		<div>{{ sn }} ({{ person.name }})</div>
+	{% else %}
+      		<div>{{ person.name }}</div>
+	{% endif %}
+      {% endif %}
     </div>
     <div class="flex justify-end">
       <div class="w-20 translate-y-1">
