@@ -3,7 +3,7 @@ use ldap3::{Ldap, LdapConnAsync, LdapError, Scope, SearchEntry};
 use serde::Deserialize;
 use tracing::{info, warn, Level};
 
-use crate::types::{NoID, Person, UserPermission};
+use crate::types::{NoId, Person, UserPermission};
 
 /// escape parameter such that it may be used in a search filter
 /// uses RFC2254 Section 4 and RFC4514 Section 2.4
@@ -222,7 +222,7 @@ impl LDAPBackend {
     }
 
     /// Get all users and find whether they are Admins (have write-access) or not.
-    pub async fn get_all_users(&self) -> Result<Vec<Person<NoID>>, LDAPError> {
+    pub async fn get_all_users(&self) -> Result<Vec<Person<NoId>>, LDAPError> {
         let mut our_handle = self.new_bound_connection().await?;
 
         let complete_filter = format!("({})", &self.user_filter,);
@@ -237,7 +237,7 @@ impl LDAPBackend {
             .map_err(LDAPError::CannotSearch)?
             .success()
             .map_err(LDAPError::UserError)?;
-        let mut res = Vec::<Person<NoID>>::new();
+        let mut res = Vec::<Person<NoId>>::new();
         for entry in rs.into_iter() {
             let object = SearchEntry::construct(entry);
             let uids = object
@@ -261,7 +261,7 @@ impl LDAPBackend {
 
             // check if this user has write access
             let permission = self.permission(our_handle.clone(), uid).await?;
-            res.push(Person::<NoID>::new(
+            res.push(Person::<NoId>::new(
                 (),
                 uid.clone(),
                 permission,

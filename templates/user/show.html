@@ -1,4 +1,4 @@
-  <div id="user-{{project_id}}-{{person.person_id()}}" class="flex justify-end border-1 border-t-0 border-r-0 border-l-0 pt-1 pr-1 pb-1 border-gray-400 dark:border-gray-600">
+  <div id="user-{{project_id}}-{{person.db_id()}}" class="flex justify-end border-1 border-t-0 border-r-0 border-l-0 pt-1 pr-1 pb-1 border-gray-400 dark:border-gray-600">
     <div class="flex w-full translate-y-2 justify-start">
       <div class="w-6"></div>
       <div>{{ person.name }}</div>
@@ -15,7 +15,7 @@
 				<button
 				  hx-post="/web/project/{{project_id}}/set_member_permission"
 				  hx-vals='{ "username": "{{person.name}}", "is_local_admin": false }'
-				  hx-target="#user-{{project_id}}-{{person.person_id()}}"
+				  hx-target="#user-{{project_id}}-{{person.db_id()}}"
 				  hx-swap="outerHTML"
 				  hx-target-error="#error_display">
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-neutral-500 dark:hover:bg-neutral-700 size-6">
@@ -45,7 +45,7 @@
 			<button
 			  hx-post="/web/project/{{project_id}}/set_member_permission"
 			  hx-vals='{ "username": "{{person.name}}", "is_local_admin": true }'
-			  hx-target="#user-{{project_id}}-{{person.person_id()}}"
+			  hx-target="#user-{{project_id}}-{{person.db_id()}}"
 			  hx-swap="outerHTML"
 			  hx-target-error="#error_display">
 			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="border-gray-400 dark:border-gray-600 text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-neutral-500 dark:hover:bg-neutral-700 size-6">
@@ -63,7 +63,7 @@
 		<button
 			class="h-10 w-10 rounded-lg text-rose-600 hover:text-rose-400 dark:text-rose-400 dark:hover:text-rose-300 hover:rounded-md hover:bg-neutral-500 dark:bg-gray-900 dark:hover:bg-neutral-700"
 			hx-delete="/web/project/{{project_id}}/remove_member"
-			hx-target="#user-{{project_id}}-{{person.person_id()}}"
+			hx-target="#user-{{project_id}}-{{person.db_id()}}"
 			hx-swap="outerHTML"
 			hx-target-error="#error_display"
 			hx-vals='{"username": "{{person.name}}"}'>

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO Project (ProjectName) VALUES ($1) RETURNING ProjectID;",
+  "query": "INSERT INTO Project (ProjectName, ProjectRoomId) VALUES ($1, $2) RETURNING ProjectID;",
   "describe": {
     "columns": [
       {
@@ -11,6 +11,7 @@
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Text"
       ]
     },
@@ -18,5 +19,5 @@
       false
     ]
   },
-  "hash": "7781f47e37267dae12012a6fb58945353e2152a5a91ec64b4e1cd8d8034fcd77"
+  "hash": "f8e04a2ec570cc20dcdee59a6dd1a7f3dd1302b6b0402f5c0a94fc7500f83763"
 }

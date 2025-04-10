@@ -12,12 +12,10 @@ use tracing::{debug, info};
 use crate::{
     config::Config,
     db::{
-        add_project_prepare, get_person, get_project,
-        remove_members_prepare, update_member_permission,
-        update_project_members_prepare, DBError,
+        add_project, get_person, get_project, remove_members_prepare, try_acquire_connection, update_member_permission, update_project_members_prepare, DBError
     },
     matrix::MatrixClientError,
-    types::{HasID, NoID, Person, Project, UserPermission},
+    types::{DbNoMatrix, FullId, NoId, Person, Project, UserPermission},
 };
 
 #[derive(Debug)]
@@ -68,10 +66,10 @@ impl From<MatrixClientError> for AddMemberError {
 /// Or the appropriate error
 pub(super) async fn add_member_to_project(
     config: Arc<Config>,
-    requester: &Person<HasID>,
+    requester: &Person<DbNoMatrix>,
     new_member_name: &str,
     project_id: i32,
-) -> Result<(Person<HasID>, Project<HasID>), AddMemberError> {
+) -> Result<(Person<DbNoMatrix>, Project<FullId>), AddMemberError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
     let mut con = config
@@ -188,10 +186,10 @@ impl From<MatrixClientError> for RemoveMemberError {
 /// Or the appropriate error
 pub(super) async fn remove_member_from_project(
     config: Arc<Config>,
-    requester: &Person<HasID>,
+    requester: &Person<DbNoMatrix>,
     remove_member_name: &str,
     project_id: i32,
-) -> Result<(Person<HasID>, Project<HasID>), RemoveMemberError> {
+) -> Result<(Person<DbNoMatrix>, Project<FullId>), RemoveMemberError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
     let mut con = config
@@ -234,7 +232,7 @@ pub(super) async fn remove_member_from_project(
 
     match remove_members_prepare(
         config.pg_pool.clone(),
-        project.project_id(),
+        project.db_id(),
         &[&remove_member],
     )
     .await
@@ -296,11 +294,11 @@ impl std::error::Error for SetPermissionError {}
 
 pub async fn set_member_permission(
     config: Arc<Config>,
-    requester: &Person<HasID>,
+    requester: &Person<DbNoMatrix>,
     change_member_name: &str,
     project_id: i32,
     new_permission: UserPermission,
-) -> Result<(Person<HasID>, Project<HasID>), SetPermissionError> {
+) -> Result<(Person<DbNoMatrix>, Project<FullId>), SetPermissionError> {
     // the permission to do this depends on the project, so we need to get that before checking
     // permission
     let mut con = config
@@ -345,7 +343,7 @@ pub async fn set_member_permission(
     match update_member_permission(
         config.pg_pool.clone(),
         project_id,
-        change_member.person_id(),
+        change_member.db_id(),
         new_permission,
     )
     .await
@@ -389,40 +387,31 @@ impl std::error::Error for CreateProjectError {}
 
 pub async fn create_project(
     config: Arc<Config>,
-    requester: &Person<HasID>,
+    requester: &Person<DbNoMatrix>,
     new_project_name: String,
-) -> Result<Project<HasID>, CreateProjectError> {
+) -> Result<Project<FullId>, CreateProjectError> {
     if requester.global_permission != UserPermission::Admin {
         return Err(CreateProjectError::RequesterHasNoPermission);
     };
 
+    // Check that the DB is online to prevent a situation where the room is created in matrix but
+    // not the DB.
+    try_acquire_connection(config.pg_pool.clone()).await.map_err(CreateProjectError::DB)?;
+
     // create the new project
-    let project = Project::<NoID>::new((), new_project_name);
+    let project = Project::<NoId>::new((), new_project_name);
 
-    match add_project_prepare(config.pg_pool.clone(), project).await {
-        Ok((tx, idd_project)) => {
-            debug!(
-                "Prepared a transaction to add project {}. Now trying to create in Matrix...",
-                idd_project.name
-            );
-            let mut our_client = config.matrix_client.clone();
-            our_client
-                .ensure_room_exists(&idd_project)
-                .await
-                .map_err(CreateProjectError::Matrix)?;
-            debug!("Successfully added project {} in Matrix. Now trying to commit the held DB transaction...", idd_project.name);
-            tx.commit()
-                .await
-                .map_err(|e| CreateProjectError::DB(DBError::CannotCommitTransaction(e)))?;
+    // create it in matrix
+    let mut our_client = config.matrix_client.clone();
+    let midd_project = our_client.create_room(project).await.map_err(CreateProjectError::Matrix)?;
+    debug!("Successfully added project {} in Matrix. Now trying to add it to the held DB...", midd_project.name);
 
-            // both matrix and DB have agreed that all is well
-            info!(
-                "Created Project {}; request made by {}.",
-                idd_project.name, requester.name
-            );
-            // then return the new project
-            Ok(idd_project)
-        }
-        Err(e) => Err(CreateProjectError::DB(e)),
-    }
+    // create it in the db
+    let idd_project = add_project(config.pg_pool.clone(), midd_project).await.map_err(CreateProjectError::DB)?;
+    info!(
+        "Created Project {}; request made by {}.",
+        idd_project.name, requester.name
+    );
+
+    Ok(idd_project)
 }

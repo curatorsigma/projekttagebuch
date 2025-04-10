@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{
     config::Config,
     db::get_person,
-    types::{HasID, Person},
+    types::{DbNoMatrix, Person},
     web_server::InternalServerErrorTemplate,
 };
 
@@ -55,7 +55,7 @@ pub(crate) fn create_protected_router() -> Router {
 async fn get_user_from_session(
     auth_session: AuthSession,
     config: Arc<Config>,
-) -> Result<Person<HasID>, impl IntoResponse> {
+) -> Result<Person<DbNoMatrix>, impl IntoResponse> {
     let user = if let Some(x) = auth_session.user {
         x
     } else {
@@ -95,7 +95,7 @@ async fn get_user_from_session(
 pub(super) mod get {
     use crate::{
         db::{get_person, get_project, get_projects, DBError},
-        types::{HasID, Project, UserPermission},
+        types::{FullId, Project, UserPermission},
         web_server::{login::AuthSession, InternalServerErrorTemplate},
     };
 
@@ -113,7 +113,7 @@ pub(super) mod get {
     #[template(path = "landing/complete.html", escape = "none")]
     struct LandingAsUser {
         username: String,
-        projects: Vec<Project<HasID>>,
+        projects: Vec<Project<FullId>>,
         matrix_server: String,
         element_server: String,
     }
@@ -434,7 +434,7 @@ pub(super) mod post {
                 };
                 new_member
                     .display(
-                        project.project_id(),
+                        project.db_id(),
                         UserPermission::new_from_is_admin(requester_is_now_admin),
                         new_member.global_permission,
                     )

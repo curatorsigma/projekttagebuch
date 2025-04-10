@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT ProjectID, ProjectName FROM Project WHERE ProjectID = $1;",
+  "query": "SELECT ProjectID, ProjectName, ProjectRoomId FROM Project WHERE ProjectID = $1;",
   "describe": {
     "columns": [
       {
@@ -12,6 +12,11 @@
         "ordinal": 1,
         "name": "projectname",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "projectroomid",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -21,8 +26,9 @@
     },
     "nullable": [
       false,
+      false,
       false
     ]
   },
-  "hash": "59c20ac87896221e2f1c8504a7864224f6b0a9c7bbe204fb0eeed145beb6cfc9"
+  "hash": "ad879f86508a4d823545158d9aa1fba2014af1221febedb18a1553ff823c452e"
 }

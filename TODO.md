@@ -6,16 +6,6 @@
 - remove user from projekt
 - get projekt protokoll
 
-## Matrix-Server aufsetzen
-
-## Matrix-Layer
-### project/new
-- refactor as action
-- erzeuge einen neuen Raum in Matrix
-### project/:projectid/new_member
-- füge eine Person dem Raum hinzu
-### project/:projectid/remove_member
-- entferne eine Person aus dem Raum
 
 ## Output-Layer
 ### Rendern von Protokollen
@@ -26,4 +16,11 @@
 - Direkter Link auf fileshare?
 - Wie kann ich fileshares zuordnen? Werden die automatisch erstellt? Oder nur ein link, der zum Projekt gehört?
 
-# dockerfile etc aufsetzen
+# Bugs
+- räume mit voller ID in der DB halten
+- also erst in Matrix anlegen
+- dann mit der ID in die DB schieben
+    - Problem: Was passiert wenn der DB insert fehlschlägt nachdem ein Matrix-raum erstellt wurde?
+    - Matrix-räume können nicht wirklich gelöscht werden
+
+## Actually show error messages

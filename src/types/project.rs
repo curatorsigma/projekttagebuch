@@ -1,22 +1,26 @@
 //! The [`Project`] type used throughout
 
-use std::borrow::Cow;
-
 use askama::Template;
 
+use super::{DbNoMatrix, FullId, IdState, MatrixNoDb, NoId, Person, UserPermission};
 
-use super::{HasID, NoID, Person, UserPermission, DbId};
+/// These are the possible states a projects ID can be in
+pub(crate) trait ProjectIdState: IdState {}
+impl ProjectIdState for NoId {}
+impl ProjectIdState for MatrixNoDb {}
+impl ProjectIdState for FullId {}
+
 
 #[derive(Debug)]
-pub(crate) struct Project<I: DbId> {
+pub(crate) struct Project<I: ProjectIdState> {
     project_id: I,
     pub(crate) name: String,
-    pub(crate) members: Vec<(Person<HasID>, UserPermission)>,
+    pub(crate) members: Vec<(Person<DbNoMatrix>, UserPermission)>,
 }
 
 impl<I> Project<I>
 where
-    I: DbId,
+    I: ProjectIdState,
 {
     pub fn new<IdInto>(project_id: IdInto, name: String) -> Self
     where
@@ -29,15 +33,19 @@ where
         }
     }
 
-    pub fn matrix_room_alias_local(&self) -> Cow<'_, str> {
-        urlencoding::encode(&self.name)
+    pub fn db_id(&self) -> I::DbId {
+        *self.project_id.db_id()
+    }
+
+    pub fn matrix_id(&self) -> &I::MatrixId {
+        self.project_id.matrix_id()
     }
 }
 
 #[derive(askama::Template)]
 #[template(path = "project/header_only.html")]
 struct ProjectDisplayHeaderOnly<'a> {
-    project: &'a Project<HasID>,
+    project: &'a Project<FullId>,
     element_server: String,
     matrix_server: String,
 }
@@ -45,19 +53,15 @@ struct ProjectDisplayHeaderOnly<'a> {
 #[derive(askama::Template)]
 #[template(path = "project/with_users.html", escape = "none")]
 struct ProjectDisplayWithUsers<'a> {
-    project: &'a Project<HasID>,
+    project: &'a Project<FullId>,
     /// Permission of the person requesting the template
     view_permission: UserPermission,
     element_server: String,
     matrix_server: String,
 }
 
-impl Project<HasID> {
-    pub(crate) fn project_id(&self) -> i32 {
-        self.project_id.id
-    }
-
-    pub(crate) fn add_member(&mut self, person: Person<HasID>, permission: UserPermission) {
+impl Project<FullId> {
+    pub(crate) fn add_member(&mut self, person: Person<DbNoMatrix>, permission: UserPermission) {
         self.members.push((person, permission));
     }
 
@@ -100,7 +104,7 @@ impl Project<HasID> {
     /// IGNORES global permissions for the user
     pub(crate) fn local_permission_for_user(
         &self,
-        person: &Person<HasID>,
+        person: &Person<DbNoMatrix>,
     ) -> Option<UserPermission> {
         for (user, perm) in self.members.iter() {
             if user.person_id == person.person_id {
@@ -111,12 +115,19 @@ impl Project<HasID> {
     }
 }
 
-impl Project<NoID> {
-    pub(crate) fn set_id<I: Into<HasID>>(self, id: I) -> Project<HasID> {
+impl Project<NoId> {
+    pub(crate) fn set_matrix_id<I: Into<MatrixNoDb>>(self, id: I) -> Project<MatrixNoDb> {
         Project {
             project_id: id.into(),
             name: self.name,
             members: self.members,
+        }
+    }
+}
+impl Project<MatrixNoDb> {
+    pub(crate) fn set_db_id<I: Into<<FullId as IdState>::DbId>>(self, id: I) -> Project<FullId> {
+        Project {
+            project_id: FullId { db_id: id.into(), matrix_id: self.project_id.matrix_id}, name: self.name, members: self.members, 
         }
     }
 }

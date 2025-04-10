@@ -3,7 +3,7 @@
 use sqlx::{PgConnection, PgPool, Postgres, Transaction};
 use tracing::{info, trace, warn};
 
-use crate::types::{HasID, NoID, Person, Project, UserPermission};
+use crate::types::{DbNoMatrix, FullId, MatrixNoDb, NoId, Person, Project, UserPermission};
 
 #[derive(Debug)]
 pub(crate) enum DBError {
@@ -88,16 +88,16 @@ impl core::fmt::Display for DBError {
 impl std::error::Error for DBError {}
 
 /// Get a list of projects
-pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> {
+pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<FullId>>, DBError> {
     // first get all projects (required if projects are empty)
-    let rows = sqlx::query!("SELECT ProjectID, ProjectName FROM Project;")
+    let rows = sqlx::query!("SELECT ProjectID, ProjectName, ProjectRoomId FROM Project;")
         .fetch_all(&pool)
         .await
         .map_err(DBError::CannotSelectProjects)?;
     let mut result = rows
         .into_iter()
-        .map(|r| Project::new(r.projectid, r.projectname))
-        .collect::<Vec<Project<HasID>>>();
+        .map(|r| Project::new((r.projectroomid, r.projectid), r.projectname))
+        .collect::<Vec<Project<FullId>>>();
 
     // Now get all users part of any projects
     let rows = sqlx::query!(
@@ -122,7 +122,7 @@ pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> 
         );
 
         for project in result.iter_mut() {
-            if project.project_id() == row.projectid {
+            if project.db_id() == row.projectid {
                 project.add_member(
                     person,
                     UserPermission::new_from_is_admin(row.isprojectadmin),
@@ -147,25 +147,26 @@ pub async fn get_projects(pool: PgPool) -> Result<Vec<Project<HasID>>, DBError> 
 
 pub(crate) async fn add_project_prepare(
     pool: PgPool,
-    project: Project<NoID>,
-) -> Result<(Transaction<'static, Postgres>, Project<HasID>), DBError> {
+    project: Project<MatrixNoDb>,
+) -> Result<(Transaction<'static, Postgres>, Project<FullId>), DBError> {
     let mut tx = pool
         .begin()
         .await
         .map_err(DBError::CannotStartTransaction)?;
 
     let new_id = sqlx::query!(
-        "INSERT INTO Project (ProjectName) VALUES ($1) RETURNING ProjectID;",
-        project.name
+        "INSERT INTO Project (ProjectName, ProjectRoomId) VALUES ($1, $2) RETURNING ProjectID;",
+        project.name,
+        project.matrix_id(),
     )
     .fetch_one(&mut *tx)
     .await
     .map_err(DBError::CannotInsertProject)?;
-    let idd_project = project.set_id(new_id.projectid);
+    let idd_project = project.set_db_id(new_id.projectid);
 
     for member in idd_project.members.iter() {
         sqlx::query!("INSERT INTO PersonProjectMap (PersonID, ProjectID, IsProjectAdmin) VALUES ($1, $2, $3);",
-            member.0.person_id(),
+            member.0.db_id(),
             new_id.projectid,
             member.1.is_admin(),
             )
@@ -181,8 +182,8 @@ pub(crate) async fn add_project_prepare(
 #[allow(dead_code)]
 pub(crate) async fn add_project(
     pool: PgPool,
-    project: Project<NoID>,
-) -> Result<Project<HasID>, DBError> {
+    project: Project<MatrixNoDb>,
+) -> Result<Project<FullId>, DBError> {
     let (tx, idd_project) = add_project_prepare(pool, project).await?;
     tx.commit()
         .await
@@ -199,10 +200,10 @@ pub(crate) async fn add_project(
 pub(crate) async fn get_project(
     con: &mut PgConnection,
     id: i32,
-) -> Result<Option<Project<HasID>>, DBError> {
+) -> Result<Option<Project<FullId>>, DBError> {
     // first get all projects (required if projects are empty)
     let rows = sqlx::query!(
-        "SELECT ProjectID, ProjectName FROM Project WHERE ProjectID = $1;",
+        "SELECT ProjectID, ProjectName, ProjectRoomId FROM Project WHERE ProjectID = $1;",
         id,
     )
     .fetch_optional(&mut *con)
@@ -213,7 +214,7 @@ pub(crate) async fn get_project(
             trace!("Project {id} does not exist.");
             return Ok(None);
         }
-        Some(x) => Project::<HasID>::new(x.projectid, x.projectname),
+        Some(x) => Project::<FullId>::new((x.projectroomid, x.projectid), x.projectname),
     };
 
     let rows = sqlx::query!(
@@ -239,7 +240,7 @@ pub(crate) async fn get_project(
             row.personfirstname,
         );
 
-        if project.project_id() == row.projectid {
+        if project.db_id() == row.projectid {
             project.add_member(
                 person,
                 UserPermission::new_from_is_admin(row.isprojectadmin),
@@ -267,7 +268,7 @@ pub(crate) async fn get_project(
 pub(crate) async fn remove_members_prepare<'a, 'b, 't>(
     pool: PgPool,
     project_id: i32,
-    members_to_remove: &'a [&'b Person<HasID>],
+    members_to_remove: &'a [&'b Person<DbNoMatrix>],
 ) -> Result<(i64, Transaction<'t, Postgres>), DBError> {
     let mut tx = pool
         .begin()
@@ -277,7 +278,7 @@ pub(crate) async fn remove_members_prepare<'a, 'b, 't>(
     for mem in members_to_remove.iter() {
         let deleted = sqlx::query!(
             "WITH deleted AS (DELETE FROM PersonProjectMap WHERE PersonID = $1 AND ProjectID = $2 RETURNING *) SELECT count(*) from deleted;",
-            mem.person_id(),
+            mem.db_id(),
             project_id,
         )
         .fetch_one(&mut *tx)
@@ -296,7 +297,7 @@ pub(crate) async fn remove_members_prepare<'a, 'b, 't>(
 pub(crate) async fn remove_members(
     pool: PgPool,
     project_id: i32,
-    members_to_remove: &[&Person<HasID>],
+    members_to_remove: &[&Person<DbNoMatrix>],
 ) -> Result<(), DBError> {
     let (num_deleted, tx) = remove_members_prepare(pool, project_id, members_to_remove).await?;
 
@@ -314,12 +315,12 @@ pub(crate) async fn remove_members(
 async fn add_members_in_transaction(
     con: &mut PgConnection,
     project_id: i32,
-    members_to_add: &[(&Person<HasID>, &UserPermission)],
+    members_to_add: &[(&Person<DbNoMatrix>, &UserPermission)],
 ) -> Result<(), DBError> {
     for (mem, permission) in members_to_add.iter() {
         sqlx::query!(
             "INSERT INTO PersonProjectMap (PersonID, ProjectID, IsProjectAdmin) VALUES ($1, $2, $3);",
-            mem.person_id(),
+            mem.db_id(),
             project_id,
             permission.is_admin(),
         )
@@ -341,7 +342,7 @@ async fn add_members_in_transaction(
 async fn add_members(
     pool: PgPool,
     project_id: i32,
-    members_to_add: &[(&Person<HasID>, &UserPermission)],
+    members_to_add: &[(&Person<DbNoMatrix>, &UserPermission)],
 ) -> Result<(), DBError> {
     let mut tx = pool
         .begin()
@@ -362,7 +363,7 @@ async fn add_members(
 
 pub(crate) async fn update_project_members_prepare<'a, 't>(
     pool: PgPool,
-    project: &'a Project<HasID>,
+    project: &'a Project<FullId>,
 ) -> Result<Transaction<'t, Postgres>, DBError> {
     let mut tx = pool
         .begin()
@@ -370,10 +371,10 @@ pub(crate) async fn update_project_members_prepare<'a, 't>(
         .map_err(DBError::CannotStartTransaction)?;
 
     let old_project =
-        get_project(&mut *tx, project.project_id())
+        get_project(&mut *tx, project.db_id())
             .await?
             .ok_or(DBError::ProjectDoesNotExist(
-                project.project_id(),
+                project.db_id(),
                 project.name.clone(),
             ))?;
 
@@ -403,10 +404,10 @@ pub(crate) async fn update_project_members_prepare<'a, 't>(
 
     // delete stale members
     let (_num_deleted, mut tx) =
-        remove_members_prepare(pool.clone(), project.project_id(), &members_to_remove).await?;
+        remove_members_prepare(pool.clone(), project.db_id(), &members_to_remove).await?;
 
     // add new members
-    add_members_in_transaction(&mut *tx, project.project_id(), &members_to_add).await?;
+    add_members_in_transaction(&mut *tx, project.db_id(), &members_to_add).await?;
 
     Ok(tx)
 }
@@ -417,7 +418,7 @@ pub(crate) async fn update_project_members_prepare<'a, 't>(
 #[allow(dead_code)]
 pub(crate) async fn update_project_members(
     pool: PgPool,
-    project: &Project<HasID>,
+    project: &Project<FullId>,
 ) -> Result<(), DBError> {
     let tx = update_project_members_prepare(pool, project).await?;
     tx.commit()
@@ -448,7 +449,7 @@ pub(crate) async fn update_member_permission(
 
 /// Add a person.
 #[allow(dead_code)]
-async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>, DBError> {
+async fn add_person(pool: PgPool, person: Person<NoId>) -> Result<Person<DbNoMatrix>, DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -468,7 +469,7 @@ async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>,
         .await
         .map_err(DBError::CannotCommitTransaction)?;
 
-    Ok(Person::<HasID>::new(
+    Ok(Person::<DbNoMatrix>::new(
         new_id_result.personid,
         person.name,
         person.global_permission,
@@ -478,7 +479,7 @@ async fn add_person(pool: PgPool, person: Person<NoID>) -> Result<Person<HasID>,
 }
 
 /// Get a person from the DB by name (exact)
-pub async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<HasID>>, DBError> {
+pub async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<DbNoMatrix>>, DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -492,7 +493,7 @@ pub async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<HasID>
     .map_err(DBError::CannotSelectPersonByExactName)?;
 
     match id_result {
-        Some(x) => Ok(Some(Person::<HasID>::new(
+        Some(x) => Ok(Some(Person::<DbNoMatrix>::new(
             x.personid,
             name.to_owned(),
             UserPermission::new_from_is_admin(x.isglobaladmin),
@@ -504,7 +505,7 @@ pub async fn get_person(pool: PgPool, name: &str) -> Result<Option<Person<HasID>
 }
 
 /// Get all persons from the DB
-async fn get_all_persons(pool: PgPool) -> Result<Vec<Person<HasID>>, DBError> {
+async fn get_all_persons(pool: PgPool) -> Result<Vec<Person<DbNoMatrix>>, DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -532,7 +533,7 @@ async fn get_all_persons(pool: PgPool) -> Result<Vec<Person<HasID>>, DBError> {
 /// Update users in the DB such that exactly these users exist with these permissions.
 ///
 /// NOTE: Permissions are global permissions here, not project-based.
-pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), DBError> {
+pub async fn update_users(pool: PgPool, users: Vec<Person<NoId>>) -> Result<(), DBError> {
     trace!("Want these users to be in the db: {users:?}");
     // first get users from DB to calculate diff
     let users_in_db = get_all_persons(pool.clone()).await?;
@@ -545,7 +546,8 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
         .await
         .map_err(DBError::CannotStartTransaction)?;
     for user in users_to_delete {
-        sqlx::query!("DELETE FROM Person WHERE PersonID = $1;", user.person_id(),)
+        sqlx::query!("DELETE FROM Person WHERE PersonID = $1;",
+        user.db_id(),)
             .execute(&mut *tx)
             .await
             .map_err(|e| DBError::CannotDeletePerson(e, user.name.clone()))?;
@@ -637,7 +639,7 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoID>>) -> Result<(), 
 pub(crate) async fn get_persons_with_similar_name(
     pool: PgPool,
     name_like: &str,
-) -> Result<Vec<Person<HasID>>, DBError> {
+) -> Result<Vec<Person<DbNoMatrix>>, DBError> {
     Ok(sqlx::query!(
         "SELECT PersonID, PersonName, PersonSurname, PersonFirstname, IsGlobalAdmin, similarity($1, concat(PersonSurname, ' ', PersonFirstname))
         FROM Person
@@ -659,6 +661,15 @@ pub(crate) async fn get_persons_with_similar_name(
     .collect::<Vec<_>>())
 }
 
+/// Test at runtime whether we can establish a connection to the DB
+pub(crate) async fn try_acquire_connection(pool: PgPool) -> Result<(), DBError> {
+    pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -666,8 +677,8 @@ mod test {
 
     #[sqlx::test(fixtures("empty"))]
     async fn test_add_person(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
-        let person = Person::<NoID> {
-            person_id: NoID::default(),
+        let person = Person::<NoId> {
+            person_id: NoId::default(),
             name: "John Doe".to_owned(),
             global_permission: UserPermission::User,
             firstname: Some("John".to_owned()),
@@ -677,7 +688,7 @@ mod test {
         let ps = get_all_persons(pool.clone()).await.unwrap();
         assert_eq!(
             ps.into_iter().next().unwrap(),
-            Person::<HasID>::new(
+            Person::<DbNoMatrix>::new(
                 1,
                 "John Doe".to_owned(),
                 UserPermission::User,
@@ -704,9 +715,9 @@ mod test {
 
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_add_project(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
-        let new_project: Project<NoID> = Project::new((), "some new name".to_owned());
+        let new_project: Project<NoId> = Project::new((), "some new name".to_owned());
         let idd_project = add_project(pool, new_project).await.unwrap();
-        assert_eq!(idd_project.project_id(), 3);
+        assert_eq!(idd_project.db_id(), 3);
         Ok(())
     }
 
@@ -753,21 +764,21 @@ mod test {
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_update_members(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         let project_id = 1;
-        let david = Person::<NoID>::new(
+        let david = Person::<NoId>::new(
             (),
             "David".to_owned(),
             UserPermission::Admin,
             Some("David".to_owned()),
             Some("Descartes".to_owned()),
         );
-        let hanna = Person::<NoID>::new(
+        let hanna = Person::<NoId>::new(
             (),
             "Hanna".to_owned(),
             UserPermission::User,
             Some("Hanna".to_owned()),
             Some("Herakleia".to_owned()),
         );
-        let samuel = Person::<NoID>::new(
+        let samuel = Person::<NoId>::new(
             (),
             "Samuel".to_owned(),
             UserPermission::User,
@@ -796,21 +807,21 @@ mod test {
 
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_update_users(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
-        let david = Person::<NoID>::new(
+        let david = Person::<NoId>::new(
             (),
             "David".to_owned(),
             UserPermission::Admin,
             Some("David".to_owned()),
             Some("Descartes".to_owned()),
         );
-        let hanna = Person::<NoID>::new(
+        let hanna = Person::<NoId>::new(
             (),
             "Hanna".to_owned(),
             UserPermission::User,
             Some("Hanna".to_owned()),
             Some("Herakleia".to_owned()),
         );
-        let samuel = Person::<NoID>::new(
+        let samuel = Person::<NoId>::new(
             (),
             "Samuel".to_owned(),
             UserPermission::User,
@@ -833,7 +844,7 @@ mod test {
             .await?
             .unwrap();
         for (member, perm) in res.members {
-            if member.person_id() == 1 {
+            if member.db_id() == 1 {
                 assert_eq!(perm, UserPermission::User);
             };
         }
