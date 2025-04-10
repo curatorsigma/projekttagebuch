@@ -108,6 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     debug!("Successfully instantiated tracing.");
 
     sqlx::migrate!().run(&config.pg_pool).await?;
+    debug!("Successfully migrated db.");
 
     // cancellation channel
     let (tx, rx) = tokio::sync::watch::channel(InShutdown::No);
