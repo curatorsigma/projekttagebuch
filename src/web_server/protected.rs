@@ -119,7 +119,6 @@ pub(super) mod get {
     struct LandingAsUser {
         user: Person<DbNoMatrix>,
         projects: Vec<Project<FullId>>,
-        matrix_server: String,
         element_server: String,
     }
 
@@ -175,7 +174,6 @@ pub(super) mod get {
             Some(person) => LandingAsUser {
                 user: person,
                 projects,
-                matrix_server: config.matrix_client.matrix_server().to_owned(),
                 element_server: config.matrix_client.element_server().to_owned(),
             }
             .into_response(),
@@ -250,7 +248,6 @@ pub(super) mod get {
         project
             .display_header_only(
                 &user,
-                config.matrix_client.matrix_server().to_owned(),
                 config.matrix_client.element_server().to_owned(),
             )
             .into_response()
@@ -315,7 +312,6 @@ pub(super) mod get {
         project
             .display_with_users(
                 permission,
-                config.matrix_client.matrix_server().to_owned(),
                 config.matrix_client.element_server().to_owned(),
             )
             .into_response()
@@ -343,7 +339,7 @@ pub(super) mod get {
         Extension(config): Extension<Arc<Config>>,
         Path(project_id): Path<i32>
     ) -> impl IntoResponse {
-        let requester = match get_user_from_session(auth_session, config.clone()).await {
+        let _requester = match get_user_from_session(auth_session, config.clone()).await {
             Ok(x) => x,
             Err(e) => {
                 return e.into_response();
@@ -484,7 +480,6 @@ pub(super) mod post {
                 // only global admins can create projects, so we template it with admin privileges
                 x.display_with_users(
                     UserPermission::Admin,
-                    config.matrix_client.matrix_server().to_owned(),
                     config.matrix_client.element_server().to_owned(),
                 )
                 .into_response()

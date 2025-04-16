@@ -2482,7 +2482,7 @@ dependencies = [
 
 [[package]]
 name = "projekttagebuch"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "askama",
  "askama_axum",

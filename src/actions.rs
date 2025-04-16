@@ -12,7 +12,7 @@ use tracing::{debug, info};
 use crate::{
     config::Config,
     db::{
-        self, add_project, get_person, get_project, remove_members_prepare, try_acquire_connection, update_member_permission, update_project_members_prepare, DBError
+        add_project, get_person, get_project, remove_members_prepare, try_acquire_connection, update_member_permission, update_project_members_prepare, DBError
     },
     matrix::MatrixClientError,
     types::{DbNoMatrix, FullId, NoId, Person, Project, UserPermission},

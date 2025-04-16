@@ -47,7 +47,6 @@ struct ProjectDisplayHeaderOnly<'a> {
     project: &'a Project<FullId>,
     view_permission: UserPermission,
     element_server: String,
-    matrix_server: String,
 }
 
 #[derive(askama::Template)]
@@ -57,7 +56,6 @@ struct ProjectDisplayWithUsers<'a> {
     /// Permission of the person requesting the template
     view_permission: UserPermission,
     element_server: String,
-    matrix_server: String,
 }
 
 #[derive(askama::Template)]
@@ -78,7 +76,6 @@ impl Project<FullId> {
     pub(crate) fn display_header_only(
         &self,
         user: &Person<DbNoMatrix>,
-        matrix_server: String,
         element_server: String,
     ) -> String {
         let view_permission = UserPermission::new_from_is_admin(
@@ -87,7 +84,6 @@ impl Project<FullId> {
             project: self,
             view_permission,
             element_server,
-            matrix_server,
         }
         .render()
         .expect("static template")
@@ -97,14 +93,12 @@ impl Project<FullId> {
     pub(crate) fn display_with_users(
         &self,
         view_permission: UserPermission,
-        matrix_server: String,
         element_server: String,
     ) -> String {
         ProjectDisplayWithUsers {
             project: self,
             view_permission,
             element_server,
-            matrix_server,
         }
         .render()
         .expect("static template")

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE Project SET ProjectName = $1 WHERE ProjectId = $2;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5594379bb41c1b3edae166d5d5eadcbe29b97889c13d6520dbdc09bd365c4249"
+}

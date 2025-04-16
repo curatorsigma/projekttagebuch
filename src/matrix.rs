@@ -91,10 +91,6 @@ impl MatrixClient {
         }
     }
 
-    pub fn matrix_server(&self) -> &str {
-        &self.servername
-    }
-
     pub fn element_server(&self) -> &str {
         &self.element_servername
     }

@@ -45,7 +45,7 @@
 
     <div id="project-list" class="items-start grid w-screen grid-cols-1 place-items-center md:grid-cols-2 xl:grid-cols-3 mb-12">
       {% for project in projects %}
-      {{ project.display_header_only(user, matrix_server.to_owned(), element_server.to_owned()) }}
+      {{ project.display_header_only(user, element_server.to_owned()) }}
       {% endfor %}
     </div>
   </main>

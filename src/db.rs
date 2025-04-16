@@ -734,7 +734,7 @@ mod test {
 
     #[sqlx::test(fixtures("two_projects"))]
     async fn test_add_project(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
-        let new_project: Project<NoId> = Project::new((), "some new name".to_owned());
+        let new_project: Project<MatrixNoDb> = Project::new("matrix-id".to_owned(), "some new name".to_owned());
         let idd_project = add_project(pool, new_project).await.unwrap();
         assert_eq!(idd_project.db_id(), 3);
         Ok(())
@@ -809,7 +809,7 @@ mod test {
         let hanna = add_person(pool.clone(), hanna).await?;
         let samuel = add_person(pool.clone(), samuel).await?;
 
-        let mut basil_1 = Project::new(1, "1Basil".to_owned());
+        let mut basil_1 = Project::new(("matrix-id".to_owned(), 1), "1Basil".to_owned());
         basil_1.members.push((david, UserPermission::User));
         basil_1.members.push((hanna, UserPermission::Admin));
         basil_1.members.push((samuel, UserPermission::Admin));
