@@ -12,7 +12,7 @@ use tracing::{debug, info};
 use crate::{
     config::Config,
     db::{
-        add_project, get_person, get_project, remove_members_prepare, try_acquire_connection, update_member_permission, update_project_members_prepare, DBError
+        self, add_project, get_person, get_project, remove_members_prepare, try_acquire_connection, update_member_permission, update_project_members_prepare, DBError
     },
     matrix::MatrixClientError,
     types::{DbNoMatrix, FullId, NoId, Person, Project, UserPermission},
@@ -230,13 +230,7 @@ pub(super) async fn remove_member_from_project(
         }
     };
 
-    match remove_members_prepare(
-        config.pg_pool.clone(),
-        project.db_id(),
-        &[&remove_member],
-    )
-    .await
-    {
+    match remove_members_prepare(config.pg_pool.clone(), project.db_id(), &[&remove_member]).await {
         Ok((_num_deleted, tx)) => {
             debug!(
                 "Prepared a transaction to remove {} from {}. Now trying to remove from Matrix...",
@@ -396,22 +390,109 @@ pub async fn create_project(
 
     // Check that the DB is online to prevent a situation where the room is created in matrix but
     // not the DB.
-    try_acquire_connection(config.pg_pool.clone()).await.map_err(CreateProjectError::DB)?;
+    try_acquire_connection(config.pg_pool.clone())
+        .await
+        .map_err(CreateProjectError::DB)?;
 
     // create the new project
     let project = Project::<NoId>::new((), new_project_name);
 
     // create it in matrix
     let mut our_client = config.matrix_client.clone();
-    let midd_project = our_client.create_room(project).await.map_err(CreateProjectError::Matrix)?;
-    debug!("Successfully added project {} in Matrix. Now trying to add it to the held DB...", midd_project.name);
+    let midd_project = our_client
+        .create_room(project)
+        .await
+        .map_err(CreateProjectError::Matrix)?;
+    debug!(
+        "Successfully added project {} in Matrix. Now trying to add it to the held DB...",
+        midd_project.name
+    );
 
     // create it in the db
-    let idd_project = add_project(config.pg_pool.clone(), midd_project).await.map_err(CreateProjectError::DB)?;
+    let idd_project = add_project(config.pg_pool.clone(), midd_project)
+        .await
+        .map_err(CreateProjectError::DB)?;
     info!(
         "Created Project {}; request made by {}.",
         idd_project.name, requester.name
     );
 
     Ok(idd_project)
+}
+
+/// The errors that can occur while trying to create a project.
+#[derive(Debug)]
+pub(super) enum RenameProjectError {
+    /// Name of the Project the requester wanted to add to
+    /// (the caller does not know how that project is called yet)
+    RequesterHasNoPermission(String),
+    ProjectDoesNotExist,
+    DB(DBError),
+    Matrix(MatrixClientError),
+}
+impl core::fmt::Display for RenameProjectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RequesterHasNoPermission(x) => {
+                write!(f, "The requester does not have the necessary permissions in group {x}.")
+            }
+            Self::ProjectDoesNotExist => {
+                write!(f, "The project does not exist.")
+            }
+            Self::DB(e) => {
+                write!(f, "The DB returned this error: {e}.")
+            }
+            Self::Matrix(e) => {
+                write!(f, "Error communicating with matrix server: {e}")
+            }
+        }
+    }
+}
+impl std::error::Error for RenameProjectError {}
+impl From<DBError> for RenameProjectError {
+    fn from(value: DBError) -> Self {
+        Self::DB(value)
+    }
+}
+impl From<MatrixClientError> for RenameProjectError {
+    fn from(value: MatrixClientError) -> Self {
+        Self::Matrix(value)
+    }
+}
+
+/// Change a projects name both in the DB as well as in matrix.
+pub async fn rename_project(
+    config: Arc<Config>,
+    requester: &Person<DbNoMatrix>,
+    project_id: i32,
+    new_project_name: String,
+) -> Result<Project<FullId>, RenameProjectError> {
+    let mut tx = config
+        .pg_pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+    let project = get_project(&mut tx, project_id)
+        .await?
+        .ok_or(RenameProjectError::ProjectDoesNotExist)?;
+
+    // user needs either global or local admin permissions
+    if !requester.is_global_admin()
+        && project.local_permission_for_user(requester) == Some(UserPermission::User)
+    {
+        return Err(RenameProjectError::RequesterHasNoPermission(project.name));
+    }
+
+    // the project exists and the requester has permission to change the name. do it!
+    // change name in db and hold transcation
+    crate::db::rename_project_in_tx(&mut tx, project_id, &new_project_name).await?;
+    debug!("Prepared transaction to rename project {} to {} in db. Now trying to rename in matrix...", project.name, &new_project_name);
+    // change name in matrix
+    let mut our_client = config.matrix_client.clone();
+    our_client.set_project_name(&project, new_project_name.clone()).await?;
+    debug!("Renamed room {} to {} in matrix. Now trying to commit held transaction...", project.name, &new_project_name);
+    // commit transaction
+    tx.commit().await.map_err(DBError::CannotCommitTransaction)?;
+    info!("Renamed project {} to {}. Request made by {}.", project.name, &new_project_name, requester.name);
+    Ok(project)
 }

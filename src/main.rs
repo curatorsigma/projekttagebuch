@@ -84,11 +84,13 @@ async fn signal_handler(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("installing crypto provider");
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
     let config = Arc::new(Config::create().await?);
+    println!("got config");
 
     let my_crate_filter = EnvFilter::new("projekttagebuch");
 

@@ -49,6 +49,12 @@ pub(crate) fn create_protected_router() -> Router {
             "/web/project/:project_id/set_member_permission",
             post(self::post::project_set_member_permission),
         )
+        .route("/web/project/:project_id/name", get(self::get::project_name_template))
+        .route(
+            "/web/project/:project_id/rename",
+            get(self::get::project_rename_template).
+            post(self::post::project_rename),
+        )
 }
 
 /// Get the user (as present in db) from the auth session, creating relevant Server Error returns
@@ -100,11 +106,10 @@ pub(super) mod get {
     };
 
     use super::*;
-    
 
     use askama_axum::IntoResponse;
     use axum::{extract::Path, http::StatusCode};
-    use tracing::{info, warn};
+    use tracing::{debug, info, warn};
     use uuid::Uuid;
 
     use crate::config::Config;
@@ -112,7 +117,7 @@ pub(super) mod get {
     #[derive(askama_axum::Template)]
     #[template(path = "landing/complete.html", escape = "none")]
     struct LandingAsUser {
-        username: String,
+        user: Person<DbNoMatrix>,
         projects: Vec<Project<FullId>>,
         matrix_server: String,
         element_server: String,
@@ -168,7 +173,7 @@ pub(super) mod get {
         };
         match user_obj {
             Some(person) => LandingAsUser {
-                username: person.name,
+                user: person,
                 projects,
                 matrix_server: config.matrix_client.matrix_server().to_owned(),
                 element_server: config.matrix_client.element_server().to_owned(),
@@ -201,7 +206,7 @@ pub(super) mod get {
         Extension(config): Extension<Arc<Config>>,
         Path(project_id): Path<i32>,
     ) -> impl IntoResponse {
-        let _user = match get_user_from_session(auth_session, config.clone()).await {
+        let user = match get_user_from_session(auth_session, config.clone()).await {
             Ok(x) => x,
             Err(response) => {
                 return response.into_response();
@@ -244,6 +249,7 @@ pub(super) mod get {
         };
         project
             .display_header_only(
+                &user,
                 config.matrix_client.matrix_server().to_owned(),
                 config.matrix_client.element_server().to_owned(),
             )
@@ -325,6 +331,114 @@ pub(super) mod get {
     ) -> impl IntoResponse {
         ProjectNewMemberTemplate { project_id }.into_response()
     }
+
+    #[derive(askama_axum::Template)]
+    #[template(path = "project/rename.html")]
+    pub(super) struct ProjectRenameTemplate {
+        project_id: i32,
+        project_name: String,
+    }
+    pub(super) async fn project_rename_template(
+        auth_session: AuthSession,
+        Extension(config): Extension<Arc<Config>>,
+        Path(project_id): Path<i32>
+    ) -> impl IntoResponse {
+        let requester = match get_user_from_session(auth_session, config.clone()).await {
+            Ok(x) => x,
+            Err(e) => {
+                return e.into_response();
+            }
+        };
+
+        let mut con = match config
+            .pg_pool
+            .clone()
+            .acquire()
+            .await
+            .map_err(DBError::CannotStartTransaction)
+        {
+            Ok(x) => x,
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot start a transaction: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response();
+            }
+        };
+        let project = match get_project(&mut con, project_id).await {
+            Ok(Some(x)) => x,
+            Ok(None) => {
+                info!("Project {project_id} was requested but does not exist.");
+                return (StatusCode::NOT_FOUND).into_response();
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot get project {project_id} by id: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response();
+            }
+        };
+        debug!("Returning new ProjectRenameTemplate");
+        ProjectRenameTemplate { project_id, project_name: project.name, }.into_response()
+    }
+
+    pub(super) async fn project_name_template(
+        auth_session: AuthSession,
+        Extension(config): Extension<Arc<Config>>,
+        Path(project_id): Path<i32>
+    ) -> impl IntoResponse {
+        let requester = match get_user_from_session(auth_session, config.clone()).await {
+            Ok(x) => x,
+            Err(e) => {
+                return e.into_response();
+            }
+        };
+
+        let mut con = match config
+            .pg_pool
+            .clone()
+            .acquire()
+            .await
+            .map_err(DBError::CannotStartTransaction)
+        {
+            Ok(x) => x,
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot start a transaction: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response();
+            }
+        };
+        let project = match get_project(&mut con, project_id).await {
+            Ok(Some(x)) => x,
+            Ok(None) => {
+                info!("Project {project_id} was requested but does not exist.");
+                return (StatusCode::NOT_FOUND).into_response();
+            }
+            Err(e) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because I cannot get project {project_id} by id: {e}. {error_uuid}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response();
+            }
+        };
+        let view_permission = UserPermission::new_from_is_admin(
+            requester.is_global_admin() || project.local_permission_for_user(&requester).is_some_and(|x| x.is_admin()));
+        debug!("Returning new project name");
+        project.display_name(&view_permission).into_response()
+    }
 }
 
 pub(super) mod post {
@@ -338,8 +452,7 @@ pub(super) mod post {
 
     use crate::{
         actions::{
-            add_member_to_project, create_project, set_member_permission, AddMemberError,
-            CreateProjectError, SetPermissionError,
+            add_member_to_project, create_project, set_member_permission, AddMemberError, CreateProjectError, RenameProjectError, SetPermissionError
         },
         config::Config,
         db::get_persons_with_similar_name,
@@ -503,7 +616,6 @@ pub(super) mod post {
             }
         };
 
-
         // get users whith name similar to the form.username
         let persons = match get_persons_with_similar_name(config.pg_pool.clone(), &form.username)
             .await
@@ -600,6 +712,70 @@ pub(super) mod post {
             }
         }
     }
+
+    #[derive(Deserialize)]
+    pub(crate) struct ProjectRenameForm {
+        name: String,
+    }
+    pub(super) async fn project_rename(
+        auth_session: AuthSession,
+        Extension(config): Extension<Arc<Config>>,
+        Path(project_id): Path<i32>,
+        Form(data): Form<ProjectRenameForm>,
+    ) -> impl IntoResponse {
+        let requester = match get_user_from_session(auth_session, config.clone()).await {
+            Ok(x) => x,
+            Err(e) => {
+                return e.into_response();
+            }
+        };
+
+        match crate::actions::rename_project(config.clone(), &requester, project_id, data.name.clone()).await {
+            Ok(mut project) => {
+                let requester_current_permission = UserPermission::new_from_is_admin(match project
+                    .local_permission_for_user(&requester)
+                {
+                    Some(UserPermission::Admin) => true,
+                    Some(UserPermission::User) => requester.is_global_admin(),
+                    None => requester.is_global_admin(),
+                });
+                // set the name to display back to the user
+                project.name = data.name;
+                project
+                    .display_name(&requester_current_permission)
+                    .into_response()
+            }
+            Err(RenameProjectError::ProjectDoesNotExist) => {
+                warn!("Sending 404 because no project with id {project_id} exists.");
+                StatusCode::NOT_FOUND.into_response()
+            }
+            Err(RenameProjectError::RequesterHasNoPermission(project_name)) => {
+                warn!(
+                    "Sending 401 because user {} is not authorized to add member to group {}.",
+                    requester.name, project_name
+                );
+                StatusCode::UNAUTHORIZED.into_response()
+            }
+            Err(RenameProjectError::Matrix(e)) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because communication with Matrix failed: {e}. {error_uuid}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response()
+            }
+            Err(RenameProjectError::DB(e)) => {
+                let error_uuid = Uuid::new_v4();
+                warn!("Sending internal server error because a DB interaction failed: {e}. {error_uuid}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    InternalServerErrorTemplate { error_uuid },
+                )
+                    .into_response()
+            }
+        }
+    }
 }
 
 pub(super) mod delete {
@@ -644,9 +820,7 @@ pub(super) mod delete {
         match remove_member_from_project(config.clone(), &requester, &form.username, project_id)
             .await
         {
-            Ok((_, _)) => {
-                (StatusCode::OK, "").into_response()
-            }
+            Ok((_, _)) => (StatusCode::OK, "").into_response(),
             Err(RemoveMemberError::ProjectDoesNotExist) => {
                 warn!("Sending 404 because no project with id {project_id} exists.");
                 StatusCode::NOT_FOUND.into_response()

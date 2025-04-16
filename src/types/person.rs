@@ -1,6 +1,5 @@
 //! The [`Person`] Type used throughout
 
-
 use askama::Template;
 
 use super::{DbNoMatrix, IdState, NoId, UserPermission};
@@ -21,7 +20,6 @@ struct UserTemplate<'a> {
     /// This determins whether they are shown as `Admin` or `User`
     local_permission: UserPermission,
 }
-
 
 pub(crate) trait PersonIdState: IdState {}
 impl PersonIdState for NoId {}

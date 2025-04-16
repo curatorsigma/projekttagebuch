@@ -13,7 +13,7 @@
 <body hx-ext="response-targets" class="min-h-screen bg-white dark:bg-gray-900 text-black dark:text-gray-400">
   <header class="sticky top-0 z-40 flex w-full justify-center border-b-4 border-zinc-400 bg-gray-300 font-mono text-black shadow-md backdrop-blur dark:border-zinc-600 dark:bg-gray-900 dark:text-gray-400">
     <div class="flex w-4/5 justify-between">
-      <div class="text-xl">$whoami &rarr; <b class="font-mono font-semibold dark:text-white">{{ username }}</b></div>
+      <div class="text-xl">$whoami &rarr; <b class="font-mono font-semibold dark:text-white">{{ user.name }}</b></div>
       <a class="h-8 w-12 text-xl text-indigo-600 hover:text-indigo-400 dark:text-indigo-400 dark:hover:text-indigo-300 hover:rounded-md hover:bg-gray-600 dark:bg-gray-900 dark:hover:bg-neutral-700 " href="/logout">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-8 w-8 translate-x-2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
@@ -45,7 +45,7 @@
 
     <div id="project-list" class="items-start grid w-screen grid-cols-1 place-items-center md:grid-cols-2 xl:grid-cols-3 mb-12">
       {% for project in projects %}
-      {{ project.display_header_only(matrix_server.to_owned(), element_server.to_owned()) }}
+      {{ project.display_header_only(user, matrix_server.to_owned(), element_server.to_owned()) }}
       {% endfor %}
     </div>
   </main>

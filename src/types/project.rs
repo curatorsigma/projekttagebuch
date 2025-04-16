@@ -10,7 +10,6 @@ impl ProjectIdState for NoId {}
 impl ProjectIdState for MatrixNoDb {}
 impl ProjectIdState for FullId {}
 
-
 #[derive(Debug)]
 pub(crate) struct Project<I: ProjectIdState> {
     project_id: I,
@@ -43,9 +42,10 @@ where
 }
 
 #[derive(askama::Template)]
-#[template(path = "project/header_only.html")]
+#[template(path = "project/header_only.html", escape="none")]
 struct ProjectDisplayHeaderOnly<'a> {
     project: &'a Project<FullId>,
+    view_permission: UserPermission,
     element_server: String,
     matrix_server: String,
 }
@@ -60,6 +60,15 @@ struct ProjectDisplayWithUsers<'a> {
     matrix_server: String,
 }
 
+#[derive(askama::Template)]
+#[template(path = "project/name_show.html")]
+struct ProjectNameDisplay<'a> {
+    project: &'a Project<FullId>,
+    /// Permission of the person requesting the template
+    view_permission: UserPermission,
+}
+
+
 impl Project<FullId> {
     pub(crate) fn add_member(&mut self, person: Person<DbNoMatrix>, permission: UserPermission) {
         self.members.push((person, permission));
@@ -68,11 +77,15 @@ impl Project<FullId> {
     /// Render self, displaying only the header
     pub(crate) fn display_header_only(
         &self,
+        user: &Person<DbNoMatrix>,
         matrix_server: String,
         element_server: String,
     ) -> String {
+        let view_permission = UserPermission::new_from_is_admin(
+            user.is_global_admin() || self.local_permission_for_user(&user).is_some_and(|x| x.is_admin()));
         ProjectDisplayHeaderOnly {
             project: self,
+            view_permission,
             element_server,
             matrix_server,
         }
@@ -92,6 +105,19 @@ impl Project<FullId> {
             view_permission,
             element_server,
             matrix_server,
+        }
+        .render()
+        .expect("static template")
+    }
+
+    /// Render self.name with the edit button next to it if the user has permission
+    pub(crate) fn display_name(
+        &self,
+        view_permission: &UserPermission,
+    ) -> String {
+        ProjectNameDisplay {
+            project: self,
+            view_permission: *view_permission,
         }
         .render()
         .expect("static template")
@@ -127,7 +153,12 @@ impl Project<NoId> {
 impl Project<MatrixNoDb> {
     pub(crate) fn set_db_id<I: Into<<FullId as IdState>::DbId>>(self, id: I) -> Project<FullId> {
         Project {
-            project_id: FullId { db_id: id.into(), matrix_id: self.project_id.matrix_id}, name: self.name, members: self.members, 
+            project_id: FullId {
+                db_id: id.into(),
+                matrix_id: self.project_id.matrix_id,
+            },
+            name: self.name,
+            members: self.members,
         }
     }
 }

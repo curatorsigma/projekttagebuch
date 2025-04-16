@@ -10,7 +10,7 @@ mod project;
 pub(crate) use project::Project;
 
 pub(crate) trait IdState: core::fmt::Debug {
-    type DbId : Copy;
+    type DbId: Copy;
     type MatrixId;
 
     fn db_id(&self) -> &Self::DbId;
@@ -56,7 +56,6 @@ impl From<String> for MatrixNoDb {
     }
 }
 
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DbNoMatrix {
     db_id: i32,
@@ -94,6 +93,9 @@ impl IdState for FullId {
 }
 impl From<(String, i32)> for FullId {
     fn from(value: (String, i32)) -> Self {
-        Self { matrix_id: value.0, db_id: value.1 }
+        Self {
+            matrix_id: value.0,
+            db_id: value.1,
+        }
     }
 }

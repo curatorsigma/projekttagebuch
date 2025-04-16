@@ -12,7 +12,7 @@ time = { version = "0.3.36", features = ["formatting", "local-offset"] }
 tracing = { version = "0.1.40", features = ["attributes"] }
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.18", features = ["time", "fmt", "env-filter"] }
-axum = { version="0.7.5", features = ["form"] }
+axum = { version="0.7.5", features = ["form", "macros"] }
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 axum-login = "0.16.0"
 ldap3 = { version = "0.11.5", default-features = false, features = ["tls-rustls"] }

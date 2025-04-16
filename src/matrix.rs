@@ -4,8 +4,8 @@ use matrix_sdk::ruma::{OwnedRoomId, RoomId, UserId};
 use matrix_sdk::{config::SyncSettings, Client};
 use tracing::warn;
 
-use crate::types::{DbNoMatrix, FullId, MatrixNoDb, NoId, Person};
 use crate::types::Project;
+use crate::types::{DbNoMatrix, FullId, MatrixNoDb, NoId, Person};
 
 #[derive(Debug)]
 pub enum MatrixClientError {
@@ -17,6 +17,7 @@ pub enum MatrixClientError {
     CannotParseUserId(matrix_sdk::IdParseError),
     CannotAddUser(matrix_sdk::Error),
     CannotCheckMembershipStatus(matrix_sdk::Error),
+    CannotSetRoomName(matrix_sdk::Error),
     UserIsBanned,
     StateUnknown,
 }
@@ -47,11 +48,20 @@ impl core::fmt::Display for MatrixClientError {
             Self::CannotCheckMembershipStatus(e) => {
                 write!(f, "Unable to check membership status for a user: {e}")
             }
+            Self::CannotSetRoomName(e) => {
+                write!(f, "Unable to set a rooms name: {e}")
+            }
             Self::UserIsBanned => {
-                write!(f, "The user is banned from a room we want to invite them into.")
+                write!(
+                    f,
+                    "The user is banned from a room we want to invite them into."
+                )
             }
             Self::StateUnknown => {
-                write!(f, "The MembershipState of a user is of a type that is not documented.")
+                write!(
+                    f,
+                    "The MembershipState of a user is of a type that is not documented."
+                )
             }
         }
     }
@@ -124,7 +134,8 @@ impl MatrixClient {
             .map_err(MatrixClientError::CannotGetUserIDs)?;
         request.name = Some(project.name.clone());
 
-        let room = self.client
+        let room = self
+            .client
             .create_room(request)
             .await
             .map_err(MatrixClientError::CannotCreateRoom)?;
@@ -141,8 +152,12 @@ impl MatrixClient {
         self.do_sync().await?;
 
         // check if the room already exists
-        let room_id = RoomId::parse(project.matrix_id()).map_err(MatrixClientError::CannotParseRoomId)?;
-        let room = self.client.get_room(&room_id).ok_or_else(|| { MatrixClientError::RoomDoesNotExist(room_id.clone()) })?;
+        let room_id =
+            RoomId::parse(project.matrix_id()).map_err(MatrixClientError::CannotParseRoomId)?;
+        let room = self
+            .client
+            .get_room(&room_id)
+            .ok_or_else(|| MatrixClientError::RoomDoesNotExist(room_id.clone()))?;
 
         // actually invite the new member
         let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername))
@@ -186,7 +201,12 @@ impl MatrixClient {
         };
         match room.invite_user_by_id(&user_id).await {
             Ok(()) => {
-                tracing::info!("Invited {} to room {} ({}).", user_id, project.name, room.room_id());
+                tracing::info!(
+                    "Invited {} to room {} ({}).",
+                    user_id,
+                    project.name,
+                    room.room_id()
+                );
             }
             Err(e) => {
                 return Err(MatrixClientError::CannotAddUser(e));
@@ -204,8 +224,12 @@ impl MatrixClient {
     ) -> Result<(), MatrixClientError> {
         self.do_sync().await?;
 
-        let room_id = RoomId::parse(project.matrix_id()).map_err(MatrixClientError::CannotParseRoomId)?;
-        let room = self.client.get_room(&room_id).ok_or_else(|| { MatrixClientError::RoomDoesNotExist(room_id.clone()) })?;
+        let room_id =
+            RoomId::parse(project.matrix_id()).map_err(MatrixClientError::CannotParseRoomId)?;
+        let room = self
+            .client
+            .get_room(&room_id)
+            .ok_or_else(|| MatrixClientError::RoomDoesNotExist(room_id.clone()))?;
         // remove the old member
         let user_id = UserId::parse(format!("@{}:{}", person.name, self.servername))
             .map_err(MatrixClientError::CannotParseUserId)?;
@@ -240,7 +264,12 @@ impl MatrixClient {
             .await
         {
             Ok(()) => {
-                tracing::info!("Kicked {} from Matrix-Room {} ({})", user_id, project.name, room_id);
+                tracing::info!(
+                    "Kicked {} from Matrix-Room {} ({})",
+                    user_id,
+                    project.name,
+                    room_id
+                );
             }
             Err(e) => {
                 return Err(MatrixClientError::CannotAddUser(e));
@@ -248,5 +277,21 @@ impl MatrixClient {
         };
 
         Ok(())
+    }
+
+    /// Set the name of the matrix room for this project
+    pub async fn set_project_name(
+        &mut self,
+        project: &Project<FullId>,
+        new_name: String,
+    ) -> Result<(), MatrixClientError> {
+        self.do_sync().await?;
+        let room_id =
+            RoomId::parse(project.matrix_id()).map_err(MatrixClientError::CannotParseRoomId)?;
+        let room = self
+            .client
+            .get_room(&room_id)
+            .ok_or_else(|| MatrixClientError::RoomDoesNotExist(room_id.clone()))?;
+        room.set_name(new_name).await.map(|_| ()).map_err(MatrixClientError::CannotSetRoomName)
     }
 }

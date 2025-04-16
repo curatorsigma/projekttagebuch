@@ -23,6 +23,7 @@ pub(crate) enum DBError {
     CannotSelectSimilarNames(sqlx::Error),
     CannotRemoveMember(sqlx::Error),
     CannotUpdateMemberPermission(sqlx::Error),
+    CannotChangeProjectName(sqlx::Error),
 
     // DATA Errors
     ProjectDoesNotExist(i32, String),
@@ -75,6 +76,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotSelectSimilarNames(x) => {
                 write!(f, "Cannot select similar names: {}.", x)
+            }
+            Self::CannotChangeProjectName(x) => {
+                write!(f, "Cannot rename a project: {x}")
             }
             Self::ProjectDoesNotExist(x, y) => {
                 write!(f, "The project with id {x}, name {y} does not exist.")
@@ -447,6 +451,23 @@ pub(crate) async fn update_member_permission(
     Ok(())
 }
 
+/// Change the name of a project in the db.
+pub(crate) async fn rename_project_in_tx(
+    con: &mut PgConnection,
+    project_id: i32,
+    new_name: &str,
+) -> Result<(), DBError> {
+    sqlx::query!(
+        "UPDATE Project SET ProjectName = $1 WHERE ProjectId = $2;",
+        new_name,
+        project_id,
+    )
+    .execute(con)
+    .await
+    .map_err(DBError::CannotChangeProjectName)?;
+    Ok(())
+}
+
 /// Add a person.
 #[allow(dead_code)]
 async fn add_person(pool: PgPool, person: Person<NoId>) -> Result<Person<DbNoMatrix>, DBError> {
@@ -546,8 +567,7 @@ pub async fn update_users(pool: PgPool, users: Vec<Person<NoId>>) -> Result<(), 
         .await
         .map_err(DBError::CannotStartTransaction)?;
     for user in users_to_delete {
-        sqlx::query!("DELETE FROM Person WHERE PersonID = $1;",
-        user.db_id(),)
+        sqlx::query!("DELETE FROM Person WHERE PersonID = $1;", user.db_id(),)
             .execute(&mut *tx)
             .await
             .map_err(|e| DBError::CannotDeletePerson(e, user.name.clone()))?;
@@ -663,8 +683,7 @@ pub(crate) async fn get_persons_with_similar_name(
 
 /// Test at runtime whether we can establish a connection to the DB
 pub(crate) async fn try_acquire_connection(pool: PgPool) -> Result<(), DBError> {
-    pool
-        .begin()
+    pool.begin()
         .await
         .map_err(DBError::CannotStartTransaction)?;
     Ok(())
